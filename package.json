@@ -1,13 +1,1 @@
-{
-	"name": "com.ligofff.simpletools-runtimecrashhandler",
-	"displayName": "Runtime Crash Handler",
-	"version": "0.0.5",
-	"unity": "2022.2",
-	"description": "Runtime Crash Handler - simple asset which catch any exception in your game, for not break user experience completely.",
-	"category": "",
-	"author": {
-		"name": "Ligofff",
-		"email": "liga@ligofff.ru",
-		"url": "https://github.com/fffogil"
-	}
-}
+{"name":"com.ligofff.simpletools-runtimecrashhandler","displayName":"Runtime Crash Handler","version":"0.0.5","unity":"2022.2","description":"Runtime Crash Handler - simple asset which catch any exception in your game, for not break user experience completely.","category":"","author":{	"name":"Ligofff",	"email":"liga@ligofff.ru",	"url":"https://github.com/fffogil"}}
