@@ -5,6 +5,10 @@
 ## About
 Runtime Crash Handler - A small asset for Unity, that catch up all game exceptions and errors, stops game and show window with options.<br />
 
+<p align="center">
+  <img width="800" src="https://user-images.githubusercontent.com/44195161/230169674-55394c54-e43a-4859-8871-b34a2e83dfc2.png">
+</p>
+
 ## Overview
 Crashes in the game are bad. But even worse are hidden crashes.
 
@@ -15,10 +19,6 @@ And if your game has a save system, and the game is saved "broken", then the pla
 **Therefore, to avoid such situations, this tool was created.**<br />
 If something in the game does not go according to plan, and a log like "Error" or "Exception" gets into the console, the game stops and a window is displayed with a description of the error and possible options.<br />
 You can write to a player that game is broken and it will no longer behave as expected. Or you can prevent the player from playing further in the game altogether, leaving only the "Exit" button *(This is what I recommend doing)*.<br />
-
-<p align="center">
-  <img width="800" src="https://user-images.githubusercontent.com/44195161/230169674-55394c54-e43a-4859-8871-b34a2e83dfc2.png">
-</p>
 
 Also, you can add any other options, such as "Send a report", or "Take a screenshot", etc - the asset lends itself very well to modifications, I made all the necessary methods virtual.
 
