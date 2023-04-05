@@ -27,9 +27,11 @@ namespace Ligofff.RuntimeExceptionsHandler
 
         [SerializeField]
         private Transform notificationsParent;
+
+        [SerializeField]
+        private bool dontDestroyOnLoad = true;
         
         private bool _isGameCrashedAlready;
-        private float _timeScaleBeforeCrash;
 
         protected virtual string ExceptionPrefix =>
             $"<color=#ebdd89>Hey! Sorry, but game is broken a little :C\nPlay time: {Time.time}s\n</color>";
@@ -38,6 +40,9 @@ namespace Ligofff.RuntimeExceptionsHandler
         {
             Application.logMessageReceivedThreaded += OnLogMessageReceived;
             window.Hide();
+            
+            if (dontDestroyOnLoad)
+                DontDestroyOnLoad(gameObject);
         }
 
         private void OnDestroy()
@@ -48,7 +53,7 @@ namespace Ligofff.RuntimeExceptionsHandler
         public virtual void CancelException()
         {
             if (timeScaleStopOnExceptionWindowOpen)
-                Time.timeScale = _timeScaleBeforeCrash;
+                Time.timeScale = 1f;
             
             window.Hide();
         }
@@ -75,10 +80,7 @@ namespace Ligofff.RuntimeExceptionsHandler
         protected virtual void OpenExceptionWindow(string condition, string stacktrace)
         {
             if (timeScaleStopOnExceptionWindowOpen)
-            {
-                _timeScaleBeforeCrash = Time.timeScale;
                 Time.timeScale = 0f;
-            }
             
             var exceptionText = $"{ExceptionPrefix}\n<color=#bf45eb>{condition}</color>\n{StackTraceToRichText(stacktrace)}";
 
