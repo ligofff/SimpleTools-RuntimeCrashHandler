@@ -84,13 +84,22 @@ namespace Ligofff.RuntimeExceptionsHandler
             
             var exceptionText = $"{ExceptionPrefix}\n<color=#bf45eb>{condition}</color>\n{StackTraceToRichText(stacktrace)}";
 
-            window.Setup("Game error!", exceptionText, new (string, Action)[]
+            window.Setup("Game error!", exceptionText, GetOptionButtons());
+            
+            window.Show();
+        }
+
+        /// <summary>
+        /// Override this method for change window option buttons
+        /// </summary>
+        /// <returns></returns>
+        protected virtual (string, Action)[] GetOptionButtons()
+        {
+            return new (string, Action)[]
             {
                 ("Cancel", CancelException),
                 ("Close game", Application.Quit)
-            });
-            
-            window.Show();
+            };
         }
 
         private void OnLogMessageReceived(string condition, string stacktrace, LogType type)
@@ -118,7 +127,7 @@ namespace Ligofff.RuntimeExceptionsHandler
             return ignoredLogMessages.Any(stacktrace.Contains);
         }
 
-        private string StackTraceToRichText(string stacktrace)
+        protected virtual string StackTraceToRichText(string stacktrace)
         {
             var threeEntryColor = "#e8c0c0";
 

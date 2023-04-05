@@ -1288,13 +1288,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 210a917bca6d4f589f9ed3faa6886989, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ignoredLogMessages: []
+  ignoredLogMessages:
+  - Something.That.May.Contains.In.Exception.That.Will.Need.To.Be.Ignored
   window: {fileID: 5146563075445690009}
   handleErrorMessagesAsNonCritical: 0
   timeScaleStopOnExceptionWindowOpen: 1
   disableCrashHandlingAfterFirstCrash: 1
   notificationPrefab: {fileID: 2859352947702138822, guid: 534d0278a40dcad41b48ccc0ddc5d2ea, type: 3}
   notificationsParent: {fileID: 5344970464877512932}
+  dontDestroyOnLoad: 1
 --- !u!223 &3157248900632100227
 Canvas:
   m_ObjectHideFlags: 0
