@@ -9,6 +9,8 @@ Runtime Crash Handler - A small asset for Unity, that catch up all game exceptio
   <img width="800" src="https://user-images.githubusercontent.com/44195161/230169674-55394c54-e43a-4859-8871-b34a2e83dfc2.png">
 </p>
 
+> [My Telegram channel](https://t.me/ligofff_blog) if you want more
+
 ## Overview
 Crashes in the game are bad. But even worse are hidden crashes.
 
