@@ -30,7 +30,7 @@ Also, you can add any other options, such as "Send a report", or "Take a screens
 * I think everything will be fine on Unity 2020 and above, but tested only for 2022.2
 
 ### Install via GIT URL
-Go to ```Package Manager``` -> ```Add package from GIT url...``` -> Enter ```https://github.com/fffogil/SimpleTools-RuntimeCrashHandler.git``` -> Click ```Add```
+Go to ```Package Manager``` -> ```Add package from GIT url...``` -> Enter ```https://github.com/ligofff/SimpleTools-RuntimeCrashHandler.git``` -> Click ```Add```
 
 You will need to have Git installed and available in your system's PATH.
 
