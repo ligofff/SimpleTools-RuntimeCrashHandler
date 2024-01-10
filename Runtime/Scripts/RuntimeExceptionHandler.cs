@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using UnityEngine;
 
 namespace Ligofff.RuntimeExceptionsHandler
@@ -36,6 +37,8 @@ namespace Ligofff.RuntimeExceptionsHandler
         protected virtual string ExceptionPrefix =>
             $"<color=#ebdd89>Hey! Sorry, but game is broken a little :C\nPlay time: {Time.time}s\n</color>";
 
+        private Thread _mainThread;
+
         private void Awake()
         {
             Application.logMessageReceivedThreaded += OnLogMessageReceived;
@@ -43,6 +46,8 @@ namespace Ligofff.RuntimeExceptionsHandler
             
             if (dontDestroyOnLoad)
                 DontDestroyOnLoad(gameObject);
+            
+            _mainThread = Thread.CurrentThread;
         }
 
         private void OnDestroy()
@@ -103,7 +108,9 @@ namespace Ligofff.RuntimeExceptionsHandler
         }
 
         private void OnLogMessageReceived(string condition, string stacktrace, LogType type)
-        {                
+        {
+            if (_mainThread != Thread.CurrentThread) return;
+
             if (!Application.isPlaying) return;
             if (IsIgnoredLogMessage(stacktrace)) return;
 
