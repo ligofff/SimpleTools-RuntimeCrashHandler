@@ -69,6 +69,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         private readonly object _pendingLock = new object();
 
         private bool _isOpen;
+        private bool _isLeftMouseDown;
         private Vector2 _scrollPosition;
         private bool _scrollToBottom;
         private float _lastScrollViewHeight;
@@ -90,6 +91,8 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
         private Texture2D _windowBackgroundTexture;
         private Texture2D _buttonTexture;
+        private Texture2D _buttonHoverOverlayTexture;
+        private Texture2D _buttonPressedOverlayTexture;
         private Texture2D _activeButtonTexture;
         private Texture2D _rowEvenTexture;
         private Texture2D _rowOddTexture;
@@ -108,6 +111,8 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             Application.logMessageReceivedThreaded -= OnLogMessageReceived;
             SafeDestroyTexture(ref _windowBackgroundTexture);
             SafeDestroyTexture(ref _buttonTexture);
+            SafeDestroyTexture(ref _buttonHoverOverlayTexture);
+            SafeDestroyTexture(ref _buttonPressedOverlayTexture);
             SafeDestroyTexture(ref _activeButtonTexture);
             SafeDestroyTexture(ref _rowEvenTexture);
             SafeDestroyTexture(ref _rowOddTexture);
@@ -121,6 +126,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         private void OnGUI()
         {
             HandleToggleHotkeyFromGuiEvent();
+            UpdatePointerStateFromGuiEvent();
 
             if (!_isOpen)
             {
@@ -170,6 +176,26 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             currentEvent.Use();
         }
 
+        private void UpdatePointerStateFromGuiEvent()
+        {
+            var currentEvent = Event.current;
+            if (currentEvent == null)
+            {
+                return;
+            }
+
+            if (currentEvent.type == EventType.MouseDown && currentEvent.button == 0)
+            {
+                _isLeftMouseDown = true;
+                return;
+            }
+
+            if ((currentEvent.type == EventType.MouseUp && currentEvent.button == 0) || currentEvent.type == EventType.MouseLeaveWindow)
+            {
+                _isLeftMouseDown = false;
+            }
+        }
+
         public void Open()
         {
             _isOpen = true;
@@ -209,7 +235,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             GUILayout.Label("Debug log", _toolbarLabelStyle, GUILayout.Height(22f));
             GUILayout.FlexibleSpace();
 
-            if (GUILayout.Button("X", _buttonStyle, GUILayout.Width(28f), GUILayout.Height(22f)))
+            if (DrawToolbarButton("X", _buttonStyle, GUILayout.Width(28f), GUILayout.Height(22f)))
             {
                 Close();
             }
@@ -221,22 +247,22 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         {
             GUILayout.BeginHorizontal();
 
-            if (GUILayout.Button("Clear", _buttonStyle, GUILayout.Height(22f)))
+            if (DrawToolbarButton("Clear", _buttonStyle, GUILayout.Height(22f)))
             {
                 ClearLogs();
             }
 
-            if (GUILayout.Button($"Auto-open is {GetOnOff(autoOpenOnError)}", autoOpenOnError ? _activeButtonStyle : _buttonStyle, GUILayout.Height(22f)))
+            if (DrawToolbarButton($"Auto-open is {GetOnOff(autoOpenOnError)}", autoOpenOnError ? _activeButtonStyle : _buttonStyle, GUILayout.Height(22f)))
             {
                 autoOpenOnError = !autoOpenOnError;
             }
 
-            if (GUILayout.Button("Copy to clipboard", _buttonStyle, GUILayout.Height(22f)))
+            if (DrawToolbarButton("Copy to clipboard", _buttonStyle, GUILayout.Height(22f)))
             {
                 GUIUtility.systemCopyBuffer = BuildClipboardText();
             }
 
-            if (GUILayout.Button($"Pause on error is {GetOnOff(pauseOnError)}", pauseOnError ? _activeButtonStyle : _buttonStyle, GUILayout.Height(22f)))
+            if (DrawToolbarButton($"Pause on error is {GetOnOff(pauseOnError)}", pauseOnError ? _activeButtonStyle : _buttonStyle, GUILayout.Height(22f)))
             {
                 pauseOnError = !pauseOnError;
             }
@@ -256,12 +282,35 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             var previousColor = GUI.contentColor;
             GUI.contentColor = color;
 
-            if (GUILayout.Button(label, value ? _activeButtonStyle : _buttonStyle, GUILayout.Width(24f), GUILayout.Height(22f)))
+            if (DrawToolbarButton(label, value ? _activeButtonStyle : _buttonStyle, GUILayout.Width(24f), GUILayout.Height(22f)))
             {
                 value = !value;
             }
 
             GUI.contentColor = previousColor;
+        }
+
+        private bool DrawToolbarButton(string text, GUIStyle style, params GUILayoutOption[] options)
+        {
+            var clicked = GUILayout.Button(text, style, options);
+            DrawToolbarButtonFeedbackOverlay();
+            return clicked;
+        }
+
+        private void DrawToolbarButtonFeedbackOverlay()
+        {
+            if (Event.current.type != EventType.Repaint)
+            {
+                return;
+            }
+
+            var rect = GUILayoutUtility.GetLastRect();
+            if (!rect.Contains(Event.current.mousePosition))
+            {
+                return;
+            }
+
+            GUI.DrawTexture(rect, _isLeftMouseDown ? _buttonPressedOverlayTexture : _buttonHoverOverlayTexture);
         }
 
         private void DrawLogList()
@@ -568,6 +617,8 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
             _windowBackgroundTexture = CreateSolidTexture(new Color(0.06f, 0.08f, 0.11f, 0.98f));
             _buttonTexture = CreateSolidTexture(new Color(0.24f, 0.24f, 0.24f, 1f));
+            _buttonHoverOverlayTexture = CreateSolidTexture(new Color(1f, 1f, 1f, 0.08f));
+            _buttonPressedOverlayTexture = CreateSolidTexture(new Color(0f, 0f, 0f, 0.18f));
             _activeButtonTexture = CreateSolidTexture(new Color(0.28f, 0.36f, 0.48f, 1f));
             _rowEvenTexture = CreateSolidTexture(new Color(0.11f, 0.13f, 0.16f, 1f));
             _rowOddTexture = CreateSolidTexture(new Color(0.07f, 0.09f, 0.12f, 1f));
