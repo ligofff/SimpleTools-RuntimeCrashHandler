@@ -95,6 +95,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         private GUIStyle _buttonStyle;
         private GUIStyle _activeButtonStyle;
         private GUIStyle _copyButtonStyle;
+        private GUIStyle _copyErrorsButtonStyle;
         private GUIStyle _copyToastStyle;
         private GUIStyle _countStyle;
         private GUIStyle _logStyle;
@@ -108,6 +109,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         private Texture2D _buttonPressedOverlayTexture;
         private Texture2D _activeButtonTexture;
         private Texture2D _copyButtonTexture;
+        private Texture2D _copyErrorsButtonTexture;
         private Texture2D _rowEvenTexture;
         private Texture2D _rowOddTexture;
 
@@ -137,6 +139,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             SafeDestroyTexture(ref _buttonPressedOverlayTexture);
             SafeDestroyTexture(ref _activeButtonTexture);
             SafeDestroyTexture(ref _copyButtonTexture);
+            SafeDestroyTexture(ref _copyErrorsButtonTexture);
             SafeDestroyTexture(ref _rowEvenTexture);
             SafeDestroyTexture(ref _rowOddTexture);
         }
@@ -274,26 +277,12 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         private void DrawWindow(int windowId)
         {
             _buttonDrawIndex = 0;
-            DrawTitleBar();
             DrawControlsRow();
+            GUILayout.Space(6f);
             DrawLogList();
             DrawBottomBar();
 
             GUI.DragWindow(new Rect(0f, 0f, windowRect.width - 44f, 24f));
-        }
-
-        private void DrawTitleBar()
-        {
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Debug log", _toolbarLabelStyle, GUILayout.Height(22f));
-            GUILayout.FlexibleSpace();
-
-            if (DrawToolbarButton("X", _buttonStyle, GUILayout.Width(28f), GUILayout.Height(22f)))
-            {
-                Close();
-            }
-
-            GUILayout.EndHorizontal();
         }
 
         private void DrawControlsRow()
@@ -327,6 +316,12 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             DrawFilterToggle(ref showErrors, "E", new Color(1f, 0.33f, 0.33f));
 
             GUILayout.FlexibleSpace();
+
+            if (DrawToolbarButton("X", _buttonStyle, GUILayout.Width(28f), GUILayout.Height(22f)))
+            {
+                Close();
+            }
+
             GUILayout.EndHorizontal();
         }
 
@@ -338,7 +333,15 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             GUILayout.FlexibleSpace();
             DrawCopyToastLabel();
 
-            if (DrawToolbarButton("Copy to clipboard", _copyButtonStyle, GUILayout.Width(150f), GUILayout.Height(24f)))
+            if (DrawToolbarButton("Copy latest 3 errors", _copyErrorsButtonStyle, GUILayout.Width(170f), GUILayout.Height(24f)))
+            {
+                GUIUtility.systemCopyBuffer = BuildLatestErrorsClipboardText(3);
+                NotifyCopiedToClipboard();
+            }
+
+            GUILayout.Space(6f);
+
+            if (DrawToolbarButton("Copy ALL", _copyButtonStyle, GUILayout.Width(80f), GUILayout.Height(24f)))
             {
                 GUIUtility.systemCopyBuffer = BuildClipboardText();
                 NotifyCopiedToClipboard();
@@ -953,6 +956,51 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             return builder.ToString();
         }
 
+        private string BuildLatestErrorsClipboardText(int maxErrors)
+        {
+            if (maxErrors <= 0)
+            {
+                return string.Empty;
+            }
+
+            var builder = new StringBuilder();
+            var copiedCount = 0;
+
+            for (var i = _entries.Count - 1; i >= 0 && copiedCount < maxErrors; i--)
+            {
+                var entry = _entries[i];
+                if (!IsErrorType(entry.Type))
+                {
+                    continue;
+                }
+
+                AppendEntryToClipboard(builder, entry);
+                copiedCount++;
+            }
+
+            if (copiedCount == 0)
+            {
+                return "No error entries found.";
+            }
+
+            return builder.ToString();
+        }
+
+        private void AppendEntryToClipboard(StringBuilder builder, LogEntry entry)
+        {
+            builder.Append(entry.Count);
+            builder.Append(' ');
+            builder.Append(entry.DisplayLine);
+            builder.Append('\n');
+
+            if (includeStackTraceInCopy && !string.IsNullOrWhiteSpace(entry.Stacktrace))
+            {
+                builder.AppendLine(entry.Stacktrace.TrimEnd());
+            }
+
+            builder.AppendLine();
+        }
+
         private void EnsureStyles()
         {
             if (_windowStyle != null)
@@ -965,13 +1013,14 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             _buttonHoverOverlayTexture = CreateSolidTexture(new Color(1f, 1f, 1f, 0.08f));
             _buttonPressedOverlayTexture = CreateSolidTexture(new Color(0f, 0f, 0f, 0.18f));
             _activeButtonTexture = CreateSolidTexture(new Color(0.28f, 0.36f, 0.48f, 1f));
-            _copyButtonTexture = CreateSolidTexture(new Color(0.2f, 0.42f, 0.24f, 1f));
+            _copyButtonTexture = CreateSolidTexture(new Color(0.45f, 0.31f, 0.12f, 1f));
+            _copyErrorsButtonTexture = CreateSolidTexture(new Color(0.18f, 0.42f, 0.22f, 1f));
             _rowEvenTexture = CreateSolidTexture(new Color(0.11f, 0.13f, 0.16f, 1f));
             _rowOddTexture = CreateSolidTexture(new Color(0.07f, 0.09f, 0.12f, 1f));
 
             _windowStyle = new GUIStyle(GUI.skin.window)
             {
-                padding = new RectOffset(8, 8, 8, 8),
+                padding = new RectOffset(8, 8, 12, 8),
                 border = new RectOffset(1, 1, 1, 1)
             };
             ApplyBackgroundToAllStates(_windowStyle, _windowBackgroundTexture, Color.white);
@@ -1009,6 +1058,14 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 hover = { background = _copyButtonTexture, textColor = Color.white },
                 active = { background = _copyButtonTexture, textColor = Color.white },
                 focused = { background = _copyButtonTexture, textColor = Color.white }
+            };
+
+            _copyErrorsButtonStyle = new GUIStyle(_buttonStyle)
+            {
+                normal = { background = _copyErrorsButtonTexture, textColor = Color.white },
+                hover = { background = _copyErrorsButtonTexture, textColor = Color.white },
+                active = { background = _copyErrorsButtonTexture, textColor = Color.white },
+                focused = { background = _copyErrorsButtonTexture, textColor = Color.white }
             };
 
             _copyToastStyle = new GUIStyle(_toolbarLabelStyle)
