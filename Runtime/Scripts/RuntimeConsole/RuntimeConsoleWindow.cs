@@ -83,6 +83,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         private GUIStyle _toolbarLabelStyle;
         private GUIStyle _buttonStyle;
         private GUIStyle _activeButtonStyle;
+        private GUIStyle _copyButtonStyle;
         private GUIStyle _countStyle;
         private GUIStyle _logStyle;
         private GUIStyle _warningStyle;
@@ -94,6 +95,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         private Texture2D _buttonHoverOverlayTexture;
         private Texture2D _buttonPressedOverlayTexture;
         private Texture2D _activeButtonTexture;
+        private Texture2D _copyButtonTexture;
         private Texture2D _rowEvenTexture;
         private Texture2D _rowOddTexture;
 
@@ -114,6 +116,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             SafeDestroyTexture(ref _buttonHoverOverlayTexture);
             SafeDestroyTexture(ref _buttonPressedOverlayTexture);
             SafeDestroyTexture(ref _activeButtonTexture);
+            SafeDestroyTexture(ref _copyButtonTexture);
             SafeDestroyTexture(ref _rowEvenTexture);
             SafeDestroyTexture(ref _rowOddTexture);
         }
@@ -225,6 +228,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             DrawTitleBar();
             DrawControlsRow();
             DrawLogList();
+            DrawBottomBar();
 
             GUI.DragWindow(new Rect(0f, 0f, windowRect.width - 44f, 24f));
         }
@@ -257,11 +261,6 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 autoOpenOnError = !autoOpenOnError;
             }
 
-            if (DrawToolbarButton("Copy to clipboard", _buttonStyle, GUILayout.Height(22f)))
-            {
-                GUIUtility.systemCopyBuffer = BuildClipboardText();
-            }
-
             if (DrawToolbarButton($"Pause on error is {GetOnOff(pauseOnError)}", pauseOnError ? _activeButtonStyle : _buttonStyle, GUILayout.Height(22f)))
             {
                 pauseOnError = !pauseOnError;
@@ -274,6 +273,20 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             DrawFilterToggle(ref showErrors, "E", new Color(1f, 0.33f, 0.33f));
 
             GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+        }
+
+        private void DrawBottomBar()
+        {
+            GUILayout.Space(4f);
+            GUILayout.BeginHorizontal();
+
+            GUILayout.FlexibleSpace();
+
+            if (DrawToolbarButton("Copy to clipboard", _copyButtonStyle, GUILayout.Width(150f), GUILayout.Height(24f)))
+            {
+                GUIUtility.systemCopyBuffer = BuildClipboardText();
+            }
             GUILayout.EndHorizontal();
         }
 
@@ -620,6 +633,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             _buttonHoverOverlayTexture = CreateSolidTexture(new Color(1f, 1f, 1f, 0.08f));
             _buttonPressedOverlayTexture = CreateSolidTexture(new Color(0f, 0f, 0f, 0.18f));
             _activeButtonTexture = CreateSolidTexture(new Color(0.28f, 0.36f, 0.48f, 1f));
+            _copyButtonTexture = CreateSolidTexture(new Color(0.2f, 0.42f, 0.24f, 1f));
             _rowEvenTexture = CreateSolidTexture(new Color(0.11f, 0.13f, 0.16f, 1f));
             _rowOddTexture = CreateSolidTexture(new Color(0.07f, 0.09f, 0.12f, 1f));
 
@@ -655,6 +669,14 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 hover = { background = _activeButtonTexture, textColor = Color.white },
                 active = { background = _activeButtonTexture, textColor = Color.white },
                 focused = { background = _activeButtonTexture, textColor = Color.white }
+            };
+
+            _copyButtonStyle = new GUIStyle(_buttonStyle)
+            {
+                normal = { background = _copyButtonTexture, textColor = Color.white },
+                hover = { background = _copyButtonTexture, textColor = Color.white },
+                active = { background = _copyButtonTexture, textColor = Color.white },
+                focused = { background = _copyButtonTexture, textColor = Color.white }
             };
 
             _countStyle = new GUIStyle(GUI.skin.label)
