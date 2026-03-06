@@ -54,6 +54,8 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         protected readonly List<PendingLog> _flushBuffer = new List<PendingLog>(128);
         protected readonly Dictionary<int, ButtonVisualState> _buttonVisualStates = new Dictionary<int, ButtonVisualState>(32);
         protected readonly List<int> _buttonStateKeyBuffer = new List<int>(32);
+        protected readonly List<BottomActionButton> _bottomCenterActions = new List<BottomActionButton>(8);
+        protected readonly GUIContent _reusableContent = new GUIContent();
         protected readonly object _pendingLock = new object();
 
         protected bool _isOpen;
@@ -69,6 +71,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         protected int _windowId;
         protected int _buttonDrawIndex;
         protected int _nextEntryId;
+        protected int _nextBottomActionId;
         protected int _selectedEntryId = -1;
 
         protected GUIStyle _windowStyle;
@@ -85,6 +88,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         protected GUIStyle _stackTraceStyle;
 
         protected Texture2D _windowBackgroundTexture;
+        protected Texture2D _headerBackgroundTexture;
         protected Texture2D _buttonTexture;
         protected Texture2D _buttonHoverOverlayTexture;
         protected Texture2D _buttonPressedOverlayTexture;
@@ -479,6 +483,54 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
         }
 
+        public virtual string AddBottomCenterAction(string label, Action callback)
+        {
+            if (string.IsNullOrWhiteSpace(label))
+            {
+                throw new ArgumentException("Action label cannot be null or whitespace.", nameof(label));
+            }
+
+            if (callback == null)
+            {
+                throw new ArgumentNullException(nameof(callback));
+            }
+
+            var id = $"bottom_action_{_nextBottomActionId++}";
+            _bottomCenterActions.Add(new BottomActionButton(id, label.Trim(), callback));
+            return id;
+        }
+
+        public virtual bool RemoveBottomCenterAction(string actionId)
+        {
+            if (string.IsNullOrWhiteSpace(actionId))
+            {
+                return false;
+            }
+
+            for (var i = 0; i < _bottomCenterActions.Count; i++)
+            {
+                if (!string.Equals(_bottomCenterActions[i].Id, actionId, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                _bottomCenterActions.RemoveAt(i);
+                return true;
+            }
+
+            return false;
+        }
+
+        public virtual void ClearBottomCenterActions()
+        {
+            _bottomCenterActions.Clear();
+        }
+
+        public virtual void ScrollToBottom()
+        {
+            _scrollToBottom = true;
+        }
+
         public virtual void ClearLogs()
         {
             _entries.Clear();
@@ -493,12 +545,23 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         {
             _buttonDrawIndex = 0;
             var activeTheme = theme;
+            DrawHeaderBackground();
             DrawControlsRow();
             GUILayout.Space(activeTheme.ControlsToEntriesSpacing);
             DrawLogList();
             DrawBottomBar();
 
             GUI.DragWindow(new Rect(0f, 0f, windowRect.width - 44f, 24f));
+        }
+
+        protected virtual void DrawHeaderBackground()
+        {
+            if (Event.current.type != EventType.Repaint)
+            {
+                return;
+            }
+
+            GUI.DrawTexture(new Rect(0f, 0f, windowRect.width, 36f), _headerBackgroundTexture);
         }
 
         protected virtual void DrawControlsRow()
@@ -546,6 +609,13 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             GUILayout.Space(theme.BottomBarTopSpacing);
             GUILayout.BeginHorizontal();
 
+            if (DrawToolbarButton("Go down", _buttonStyle, GUILayout.Width(80f), GUILayout.Height(24f)))
+            {
+                ScrollToBottom();
+            }
+
+            GUILayout.FlexibleSpace();
+            DrawBottomCenterActions();
             GUILayout.FlexibleSpace();
             DrawCopyToastLabel();
 
@@ -561,6 +631,35 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 CopyAllVisibleEntriesToClipboard();
             }
             GUILayout.EndHorizontal();
+        }
+
+        protected virtual void DrawBottomCenterActions()
+        {
+            for (var i = 0; i < _bottomCenterActions.Count; i++)
+            {
+                var actionButton = _bottomCenterActions[i];
+                if (DrawToolbarButton(actionButton.Label, _buttonStyle, GUILayout.Height(24f)))
+                {
+                    InvokeBottomCenterAction(actionButton);
+                }
+
+                if (i < _bottomCenterActions.Count - 1)
+                {
+                    GUILayout.Space(theme.BottomButtonsSpacing);
+                }
+            }
+        }
+
+        protected virtual void InvokeBottomCenterAction(BottomActionButton actionButton)
+        {
+            try
+            {
+                actionButton.Callback.Invoke();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogException(ex, this);
+            }
         }
 
         protected virtual void CopyLatestErrorsToClipboard(int maxErrors)
@@ -795,7 +894,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
             if (_scrollToBottom)
             {
-                _scrollPosition.y = Mathf.Max(0f, _lastContentHeight - _lastScrollViewHeight);
+                _scrollPosition.y = float.MaxValue;
                 _scrollToBottom = false;
             }
         }
@@ -819,13 +918,14 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
 
             var messageWidth = rect.width - 34f;
-            var messageHeight = messageStyle.CalcHeight(new GUIContent(entry.DisplayLine), Mathf.Max(120f, messageWidth));
+            var messageContent = ToReusableContent(entry.DisplayLine);
+            var messageHeight = messageStyle.CalcHeight(messageContent, Mathf.Max(120f, messageWidth));
 
             var countRect = new Rect(rect.x + 4f, rect.y + 2f, 24f, rowHeight - 4f);
             GUI.Label(countRect, entry.Count.ToString(), _countStyle);
 
             var messageRect = new Rect(rect.x + 30f, rect.y + 2f, messageWidth, messageHeight);
-            GUI.Label(messageRect, entry.DisplayLine, messageStyle);
+            GUI.Label(messageRect, messageContent, messageStyle);
 
             if (isExpanded && CanShowStackTrace(entry))
             {
@@ -833,7 +933,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 GUI.DrawTexture(new Rect(messageRect.x, dividerY, messageRect.width, 1f), _buttonTexture);
 
                 var stackTraceRect = new Rect(messageRect.x, dividerY + 4f, messageRect.width, rowHeight - (dividerY - rect.y) - 6f);
-                GUI.Label(stackTraceRect, NormalizeLineBreaks(entry.Stacktrace), _stackTraceStyle);
+                GUI.Label(stackTraceRect, ToReusableContent(entry.Stacktrace), _stackTraceStyle);
             }
 
             return rect.height;
@@ -859,12 +959,12 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         {
             // Use the window width as an estimate before layout reserves exact row rect.
             var estimatedMessageWidth = Mathf.Max(120f, windowRect.width - 80f);
-            var messageHeight = messageStyle.CalcHeight(new GUIContent(entry.DisplayLine), estimatedMessageWidth);
+            var messageHeight = messageStyle.CalcHeight(ToReusableContent(entry.DisplayLine), estimatedMessageWidth);
             var contentHeight = messageHeight + 6f;
 
             if (isExpanded && CanShowStackTrace(entry))
             {
-                var stackTraceHeight = _stackTraceStyle.CalcHeight(new GUIContent(NormalizeLineBreaks(entry.Stacktrace)), estimatedMessageWidth);
+                var stackTraceHeight = _stackTraceStyle.CalcHeight(ToReusableContent(entry.Stacktrace), estimatedMessageWidth);
                 contentHeight += stackTraceHeight + 8f;
             }
 
@@ -928,7 +1028,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
         protected virtual void FlushPendingLogs()
         {
-            var shouldStickToBottom = IsScrollAtBottom();
+            var shouldStickToBottom = IsScrollNearBottom();
 
             _flushBuffer.Clear();
 
@@ -970,6 +1070,17 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
             var bottomPosition = _scrollPosition.y + _lastScrollViewHeight;
             return bottomPosition >= _lastContentHeight - 8f;
+        }
+
+        protected virtual bool IsScrollNearBottom()
+        {
+            if (IsScrollAtBottom())
+            {
+                return true;
+            }
+
+            var maxScroll = Mathf.Max(0f, _lastContentHeight - _lastScrollViewHeight);
+            return _scrollPosition.y >= maxScroll - Mathf.Max(_rowHeight, 24f);
         }
 
         protected virtual void UpdateUiScale()
@@ -1284,6 +1395,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             _appliedTheme = null;
 
             SafeDestroyTexture(ref _windowBackgroundTexture);
+            SafeDestroyTexture(ref _headerBackgroundTexture);
             SafeDestroyTexture(ref _buttonTexture);
             SafeDestroyTexture(ref _buttonHoverOverlayTexture);
             SafeDestroyTexture(ref _buttonPressedOverlayTexture);
@@ -1305,6 +1417,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             _appliedTheme = theme;
 
             _windowBackgroundTexture = CreateSolidTexture(theme.WindowBackgroundColor);
+            _headerBackgroundTexture = CreateSolidTexture(theme.HeaderBackgroundColor);
             _buttonTexture = CreateSolidTexture(theme.ButtonColor);
             _buttonHoverOverlayTexture = CreateSolidTexture(theme.ButtonHoverOverlayColor);
             _buttonPressedOverlayTexture = CreateSolidTexture(theme.ButtonPressedOverlayColor);
@@ -1496,6 +1609,12 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             return text.Replace("\r\n", "\n").Replace('\r', '\n');
         }
 
+        protected virtual GUIContent ToReusableContent(string text)
+        {
+            _reusableContent.text = text ?? string.Empty;
+            return _reusableContent;
+        }
+
         protected readonly struct PendingLog
         {
             public readonly string Condition;
@@ -1507,6 +1626,20 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 Condition = condition;
                 Stacktrace = stacktrace;
                 Type = type;
+            }
+        }
+
+        protected readonly struct BottomActionButton
+        {
+            public readonly string Id;
+            public readonly string Label;
+            public readonly Action Callback;
+
+            public BottomActionButton(string id, string label, Action callback)
+            {
+                Id = id;
+                Label = label;
+                Callback = callback;
             }
         }
 
@@ -1523,7 +1656,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             {
                 Id = id;
                 Condition = condition ?? string.Empty;
-                Stacktrace = stacktrace ?? string.Empty;
+                Stacktrace = NormalizeLineBreaks(stacktrace ?? string.Empty);
                 Type = type;
                 Count = 1;
                 DisplayLine = NormalizeLineBreaks(displayLine ?? string.Empty);

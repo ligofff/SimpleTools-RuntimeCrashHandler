@@ -86,6 +86,9 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         private Color windowBackgroundColor = new Color(0.06f, 0.08f, 0.11f, 0.98f);
 
         [SerializeField]
+        private Color headerBackgroundColor = new Color(0.1f, 0.14f, 0.19f, 1f);
+
+        [SerializeField]
         private Color buttonColor = new Color(0.24f, 0.24f, 0.24f, 1f);
 
         [SerializeField]
@@ -249,6 +252,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         public RectOffset ButtonPadding => buttonPadding;
 
         public Color WindowBackgroundColor => windowBackgroundColor;
+        public Color HeaderBackgroundColor => headerBackgroundColor;
         public Color ButtonColor => buttonColor;
         public Color ActiveButtonColor => activeButtonColor;
         public Color CopyAllButtonColor => copyAllButtonColor;

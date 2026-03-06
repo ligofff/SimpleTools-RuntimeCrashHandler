@@ -49,6 +49,7 @@ MonoBehaviour:
     m_Top: 2
     m_Bottom: 2
   windowBackgroundColor: {r: 0.06, g: 0.08, b: 0.11, a: 0.98}
+  headerBackgroundColor: {r: 0.1, g: 0.14, b: 0.19, a: 1}
   buttonColor: {r: 0.24, g: 0.24, b: 0.24, a: 1}
   activeButtonColor: {r: 0.28, g: 0.36, b: 0.48, a: 1}
   copyAllButtonColor: {r: 0.45, g: 0.31, b: 0.12, a: 1}
