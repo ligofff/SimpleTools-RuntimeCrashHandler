@@ -55,6 +55,8 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         protected readonly Dictionary<int, ButtonVisualState> _buttonVisualStates = new Dictionary<int, ButtonVisualState>(32);
         protected readonly List<int> _buttonStateKeyBuffer = new List<int>(32);
         protected readonly List<BottomActionButton> _bottomCenterActions = new List<BottomActionButton>(8);
+        protected readonly List<VirtualizedRow> _virtualizedRows = new List<VirtualizedRow>(128);
+        protected readonly Dictionary<int, float> _collapsedRowHeights = new Dictionary<int, float>(512);
         protected readonly GUIContent _reusableContent = new GUIContent();
         protected readonly object _pendingLock = new object();
 
@@ -68,6 +70,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         protected float _copyToastTimeLeft;
         protected float _timeScaleBeforePause = 1f;
         protected float _uiScale = 1f;
+        protected float _rowHeightCacheWidth = -1f;
         protected int _windowId;
         protected int _buttonDrawIndex;
         protected int _nextEntryId;
@@ -222,11 +225,13 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         {
             while (_entries.Count > maxEntries)
             {
-                if (_selectedEntryId == _entries[0].Id)
+                var removedEntry = _entries[0];
+                if (_selectedEntryId == removedEntry.Id)
                 {
                     _selectedEntryId = -1;
                 }
 
+                _collapsedRowHeights.Remove(removedEntry.Id);
                 _entries.RemoveAt(0);
             }
         }
@@ -534,6 +539,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         public virtual void ClearLogs()
         {
             _entries.Clear();
+            _collapsedRowHeights.Clear();
             _selectedEntryId = -1;
             _scrollPosition = Vector2.zero;
             _lastScrollViewHeight = 0f;
@@ -872,8 +878,20 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         {
             _scrollPosition = GUILayout.BeginScrollView(_scrollPosition, GUILayout.ExpandHeight(true));
 
+            _virtualizedRows.Clear();
             var contentHeight = 0f;
             var rowIndex = 0;
+            var canCull = _lastScrollViewHeight > 1f;
+            var viewportHeight = Mathf.Max(_lastScrollViewHeight, 1f);
+            var viewportTop = _scrollPosition.y;
+            var viewportBottom = viewportTop + viewportHeight;
+            var overscanHeight = Mathf.Max(_rowHeight * 2f, 48f);
+            var cullTop = canCull ? viewportTop - overscanHeight : float.NegativeInfinity;
+            var cullBottom = canCull ? viewportBottom + overscanHeight : float.PositiveInfinity;
+            var estimatedMessageWidth = Mathf.Max(120f, windowRect.width - 80f);
+
+            EnsureRowHeightCacheForWidth(estimatedMessageWidth);
+
             for (var i = 0; i < _entries.Count; i++)
             {
                 var entry = _entries[i];
@@ -882,8 +900,31 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                     continue;
                 }
 
-                contentHeight += DrawLogRow(entry, rowIndex);
+                var isExpanded = _selectedEntryId == entry.Id;
+                var rowHeight = GetRowHeight(entry, GetStyleForType(entry.Type), isExpanded, estimatedMessageWidth);
+                var rowTop = contentHeight;
+                var rowBottom = rowTop + rowHeight;
+
+                if (rowBottom >= cullTop && rowTop <= cullBottom)
+                {
+                    _virtualizedRows.Add(new VirtualizedRow(i, rowIndex, rowTop, rowHeight));
+                }
+
+                contentHeight = rowBottom;
                 rowIndex++;
+            }
+
+            // Reserve full content height once, then draw virtualized rows manually.
+            var contentRect = GUILayoutUtility.GetRect(0f, 10000f, contentHeight, contentHeight, GUILayout.ExpandWidth(true));
+
+            if (_virtualizedRows.Count > 0)
+            {
+                for (var i = 0; i < _virtualizedRows.Count; i++)
+                {
+                    var row = _virtualizedRows[i];
+                    var rowRect = new Rect(contentRect.x, contentRect.y + row.Top, contentRect.width, row.Height);
+                    DrawLogRow(_entries[row.EntryIndex], row.RowIndex, rowRect);
+                }
             }
 
             GUILayout.EndScrollView();
@@ -899,12 +940,11 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
         }
 
-        protected virtual float DrawLogRow(LogEntry entry, int rowIndex)
+        protected virtual void DrawLogRow(LogEntry entry, int rowIndex, Rect rect)
         {
             var messageStyle = GetStyleForType(entry.Type);
             var isExpanded = _selectedEntryId == entry.Id;
-            var rowHeight = GetRowHeight(entry, messageStyle, isExpanded);
-            var rect = GUILayoutUtility.GetRect(10f, rowHeight, GUILayout.ExpandWidth(true));
+            var rowHeight = rect.height;
 
             if (Event.current.type == EventType.MouseDown && Event.current.button == 0 && rect.Contains(Event.current.mousePosition))
             {
@@ -935,8 +975,6 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 var stackTraceRect = new Rect(messageRect.x, dividerY + 4f, messageRect.width, rowHeight - (dividerY - rect.y) - 6f);
                 GUI.Label(stackTraceRect, ToReusableContent(entry.Stacktrace), _stackTraceStyle);
             }
-
-            return rect.height;
         }
 
         protected virtual void HandleLogEntryClick(LogEntry entry, bool isExpanded)
@@ -957,18 +995,44 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
         protected virtual float GetRowHeight(LogEntry entry, GUIStyle messageStyle, bool isExpanded)
         {
-            // Use the window width as an estimate before layout reserves exact row rect.
             var estimatedMessageWidth = Mathf.Max(120f, windowRect.width - 80f);
-            var messageHeight = messageStyle.CalcHeight(ToReusableContent(entry.DisplayLine), estimatedMessageWidth);
-            var contentHeight = messageHeight + 6f;
+            return GetRowHeight(entry, messageStyle, isExpanded, estimatedMessageWidth);
+        }
 
-            if (isExpanded && CanShowStackTrace(entry))
+        protected virtual float GetRowHeight(LogEntry entry, GUIStyle messageStyle, bool isExpanded, float estimatedMessageWidth)
+        {
+            var collapsedHeight = GetCollapsedRowHeight(entry, messageStyle, estimatedMessageWidth);
+            if (!isExpanded || !CanShowStackTrace(entry))
             {
-                var stackTraceHeight = _stackTraceStyle.CalcHeight(ToReusableContent(entry.Stacktrace), estimatedMessageWidth);
-                contentHeight += stackTraceHeight + 8f;
+                return collapsedHeight;
             }
 
-            return Mathf.Max(_rowHeight, contentHeight);
+            var stackTraceHeight = _stackTraceStyle.CalcHeight(ToReusableContent(entry.Stacktrace), estimatedMessageWidth);
+            return collapsedHeight + stackTraceHeight + 8f;
+        }
+
+        protected virtual float GetCollapsedRowHeight(LogEntry entry, GUIStyle messageStyle, float estimatedMessageWidth)
+        {
+            if (_collapsedRowHeights.TryGetValue(entry.Id, out var height))
+            {
+                return height;
+            }
+
+            var messageHeight = messageStyle.CalcHeight(ToReusableContent(entry.DisplayLine), estimatedMessageWidth);
+            height = Mathf.Max(_rowHeight, messageHeight + 6f);
+            _collapsedRowHeights[entry.Id] = height;
+            return height;
+        }
+
+        protected virtual void EnsureRowHeightCacheForWidth(float estimatedMessageWidth)
+        {
+            if (Mathf.Approximately(_rowHeightCacheWidth, estimatedMessageWidth))
+            {
+                return;
+            }
+
+            _rowHeightCacheWidth = estimatedMessageWidth;
+            _collapsedRowHeights.Clear();
         }
 
         protected virtual bool CanShowStackTrace(LogEntry entry)
@@ -980,6 +1044,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         {
             size = Mathf.Max(8, size);
             _rowHeight = Mathf.Max(20f, size + 8f);
+            _collapsedRowHeights.Clear();
 
             if (_countStyle != null)
             {
@@ -1217,11 +1282,13 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
             if (_entries.Count >= maxEntries)
             {
-                if (_selectedEntryId == _entries[0].Id)
+                var removedEntry = _entries[0];
+                if (_selectedEntryId == removedEntry.Id)
                 {
                     _selectedEntryId = -1;
                 }
 
+                _collapsedRowHeights.Remove(removedEntry.Id);
                 _entries.RemoveAt(0);
             }
 
@@ -1393,6 +1460,8 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             _errorStyle = null;
             _stackTraceStyle = null;
             _appliedTheme = null;
+            _rowHeightCacheWidth = -1f;
+            _collapsedRowHeights.Clear();
 
             SafeDestroyTexture(ref _windowBackgroundTexture);
             SafeDestroyTexture(ref _headerBackgroundTexture);
@@ -1640,6 +1709,22 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 Id = id;
                 Label = label;
                 Callback = callback;
+            }
+        }
+
+        protected readonly struct VirtualizedRow
+        {
+            public readonly int EntryIndex;
+            public readonly int RowIndex;
+            public readonly float Top;
+            public readonly float Height;
+
+            public VirtualizedRow(int entryIndex, int rowIndex, float top, float height)
+            {
+                EntryIndex = entryIndex;
+                RowIndex = rowIndex;
+                Top = top;
+                Height = height;
             }
         }
 
