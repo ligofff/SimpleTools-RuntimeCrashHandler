@@ -47,7 +47,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         [Header("Appearance")]
         [SerializeField]
         [Min(8)]
-        private int traceFontSize = 13;
+        private int traceFontSize = 15;
 
         [SerializeField]
         private bool autoScaleWithScreen = true;
@@ -63,6 +63,10 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         [Range(0.5f, 3f)]
         private float maxUiScale = 1.6f;
 
+        [SerializeField]
+        [Min(0.1f)]
+        private float copyToastDuration = 1f;
+
         private readonly List<LogEntry> _entries = new List<LogEntry>(256);
         private readonly Queue<PendingLog> _pendingLogs = new Queue<PendingLog>(128);
         private readonly List<PendingLog> _flushBuffer = new List<PendingLog>(128);
@@ -72,10 +76,13 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
         private bool _isOpen;
         private bool _isLeftMouseDown;
+        private bool _pausedByConsole;
         private Vector2 _scrollPosition;
         private bool _scrollToBottom;
         private float _lastScrollViewHeight;
         private float _lastContentHeight;
+        private float _copyToastTimeLeft;
+        private float _timeScaleBeforePause = 1f;
         private float _uiScale = 1f;
         private int _windowId;
         private int _buttonDrawIndex;
@@ -87,6 +94,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         private GUIStyle _buttonStyle;
         private GUIStyle _activeButtonStyle;
         private GUIStyle _copyButtonStyle;
+        private GUIStyle _copyToastStyle;
         private GUIStyle _countStyle;
         private GUIStyle _logStyle;
         private GUIStyle _warningStyle;
@@ -114,6 +122,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         private void OnDestroy()
         {
             Application.logMessageReceivedThreaded -= OnLogMessageReceived;
+            RestoreTimeScaleIfNeeded();
             SafeDestroyTexture(ref _windowBackgroundTexture);
             SafeDestroyTexture(ref _buttonTexture);
             SafeDestroyTexture(ref _buttonHoverOverlayTexture);
@@ -124,10 +133,20 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             SafeDestroyTexture(ref _rowOddTexture);
         }
 
+        private void OnDisable()
+        {
+            RestoreTimeScaleIfNeeded();
+        }
+
         private void Update()
         {
             FlushPendingLogs();
             AnimateButtonStates();
+
+            if (_copyToastTimeLeft > 0f)
+            {
+                _copyToastTimeLeft = Mathf.Max(0f, _copyToastTimeLeft - Time.unscaledDeltaTime);
+            }
         }
 
         private void OnGUI()
@@ -211,11 +230,19 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         public void Close()
         {
             _isOpen = false;
+            RestoreTimeScaleIfNeeded();
         }
 
         public void Toggle()
         {
-            _isOpen = !_isOpen;
+            if (_isOpen)
+            {
+                Close();
+            }
+            else
+            {
+                Open();
+            }
         }
 
         public void ClearLogs()
@@ -269,6 +296,11 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             if (DrawToolbarButton($"Pause on error is {GetOnOff(pauseOnError)}", pauseOnError ? _activeButtonStyle : _buttonStyle, GUILayout.Height(22f)))
             {
                 pauseOnError = !pauseOnError;
+
+                if (!pauseOnError)
+                {
+                    RestoreTimeScaleIfNeeded();
+                }
             }
 
             GUILayout.Label("|", _toolbarLabelStyle, GUILayout.Width(8f), GUILayout.Height(22f));
@@ -287,12 +319,30 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             GUILayout.BeginHorizontal();
 
             GUILayout.FlexibleSpace();
+            DrawCopyToastLabel();
 
             if (DrawToolbarButton("Copy to clipboard", _copyButtonStyle, GUILayout.Width(150f), GUILayout.Height(24f)))
             {
                 GUIUtility.systemCopyBuffer = BuildClipboardText();
+                NotifyCopiedToClipboard();
             }
             GUILayout.EndHorizontal();
+        }
+
+        private void DrawCopyToastLabel()
+        {
+            var alpha = GetCopyToastAlpha();
+            if (alpha <= 0.001f)
+            {
+                return;
+            }
+
+            var previousColor = GUI.color;
+            GUI.color = new Color(0.55f, 1f, 0.62f, alpha);
+            GUILayout.Label("Copied to clipboard!", _copyToastStyle, GUILayout.Height(24f));
+            GUI.color = previousColor;
+
+            GUILayout.Space(8f);
         }
 
         private void DrawFilterToggle(ref bool value, string label, Color color)
@@ -612,9 +662,9 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                     _isOpen = true;
                 }
 
-                if (pauseOnError && isError && Application.isPlaying)
+                if (pauseOnError && isError)
                 {
-                    Time.timeScale = 0f;
+                    PauseTimeScaleIfNeeded();
                 }
             }
 
@@ -698,6 +748,52 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
 
             _entries.Add(new LogEntry(_nextEntryId++, DateTime.Now, condition, stacktrace, type));
+        }
+
+        private void PauseTimeScaleIfNeeded()
+        {
+            if (!Application.isPlaying)
+            {
+                return;
+            }
+
+            if (_pausedByConsole)
+            {
+                return;
+            }
+
+            _timeScaleBeforePause = Time.timeScale;
+            Time.timeScale = 0f;
+            _pausedByConsole = true;
+        }
+
+        private void RestoreTimeScaleIfNeeded()
+        {
+            if (!_pausedByConsole)
+            {
+                return;
+            }
+
+            Time.timeScale = _timeScaleBeforePause;
+            _pausedByConsole = false;
+        }
+
+        private void NotifyCopiedToClipboard()
+        {
+            _copyToastTimeLeft = Mathf.Max(0.1f, copyToastDuration);
+        }
+
+        private float GetCopyToastAlpha()
+        {
+            if (_copyToastTimeLeft <= 0f)
+            {
+                return 0f;
+            }
+
+            var duration = Mathf.Max(0.1f, copyToastDuration);
+            var t = Mathf.Clamp01(_copyToastTimeLeft / duration);
+            // Slightly slower fade at the beginning so it remains readable.
+            return Mathf.Pow(t, 0.7f);
         }
 
         private bool ShouldShow(LogType type)
@@ -811,6 +907,12 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 hover = { background = _copyButtonTexture, textColor = Color.white },
                 active = { background = _copyButtonTexture, textColor = Color.white },
                 focused = { background = _copyButtonTexture, textColor = Color.white }
+            };
+
+            _copyToastStyle = new GUIStyle(_toolbarLabelStyle)
+            {
+                fontSize = 12,
+                alignment = TextAnchor.MiddleRight
             };
 
             _countStyle = new GUIStyle(GUI.skin.label)
