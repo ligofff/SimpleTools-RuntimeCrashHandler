@@ -49,6 +49,20 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         [Min(8)]
         private int traceFontSize = 13;
 
+        [SerializeField]
+        private bool autoScaleWithScreen = true;
+
+        [SerializeField]
+        private Vector2Int referenceResolution = new Vector2Int(1920, 1080);
+
+        [SerializeField]
+        [Range(0.4f, 2f)]
+        private float minUiScale = 0.7f;
+
+        [SerializeField]
+        [Range(0.5f, 3f)]
+        private float maxUiScale = 1.6f;
+
         private readonly List<LogEntry> _entries = new List<LogEntry>(256);
         private readonly Queue<PendingLog> _pendingLogs = new Queue<PendingLog>(128);
         private readonly List<PendingLog> _flushBuffer = new List<PendingLog>(128);
@@ -59,6 +73,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         private bool _scrollToBottom;
         private float _lastScrollViewHeight;
         private float _lastContentHeight;
+        private float _uiScale = 1f;
         private int _windowId;
         private int _nextEntryId;
         private int _selectedEntryId = -1;
@@ -113,7 +128,24 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
 
             EnsureStyles();
-            windowRect = GUILayout.Window(_windowId, windowRect, DrawWindow, GUIContent.none, _windowStyle);
+            UpdateUiScale();
+
+            var previousMatrix = GUI.matrix;
+            try
+            {
+                if (!Mathf.Approximately(_uiScale, 1f))
+                {
+                    GUI.matrix = Matrix4x4.Scale(new Vector3(_uiScale, _uiScale, 1f));
+                }
+
+                windowRect = GUILayout.Window(_windowId, windowRect, DrawWindow, GUIContent.none, _windowStyle);
+            }
+            finally
+            {
+                GUI.matrix = previousMatrix;
+            }
+
+            ClampWindowToVisibleArea();
         }
 
         private void HandleToggleHotkeyFromGuiEvent()
@@ -410,6 +442,39 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
             var bottomPosition = _scrollPosition.y + _lastScrollViewHeight;
             return bottomPosition >= _lastContentHeight - 8f;
+        }
+
+        private void UpdateUiScale()
+        {
+            if (!autoScaleWithScreen)
+            {
+                _uiScale = 1f;
+                return;
+            }
+
+            var refWidth = Mathf.Max(1, referenceResolution.x);
+            var refHeight = Mathf.Max(1, referenceResolution.y);
+
+            var widthScale = Screen.width / (float)refWidth;
+            var heightScale = Screen.height / (float)refHeight;
+            var resolvedScale = Mathf.Min(widthScale, heightScale);
+
+            if (maxUiScale < minUiScale)
+            {
+                maxUiScale = minUiScale;
+            }
+
+            _uiScale = Mathf.Clamp(resolvedScale, minUiScale, maxUiScale);
+        }
+
+        private void ClampWindowToVisibleArea()
+        {
+            var safeScale = Mathf.Max(0.001f, _uiScale);
+            var visibleWidth = Screen.width / safeScale;
+            var visibleHeight = Screen.height / safeScale;
+
+            windowRect.x = Mathf.Clamp(windowRect.x, 0f, Mathf.Max(0f, visibleWidth - windowRect.width));
+            windowRect.y = Mathf.Clamp(windowRect.y, 0f, Mathf.Max(0f, visibleHeight - windowRect.height));
         }
 
         private void AddLog(string condition, string stacktrace, LogType type)
