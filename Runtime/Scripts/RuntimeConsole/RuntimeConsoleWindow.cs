@@ -45,28 +45,9 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         [SerializeField]
         private bool showErrors = true;
 
-        [Header("Appearance")]
+        [Header("Theme")]
         [SerializeField]
-        [Min(8)]
-        private int traceFontSize = 15;
-
-        [SerializeField]
-        private bool autoScaleWithScreen = true;
-
-        [SerializeField]
-        private Vector2Int referenceResolution = new Vector2Int(1920, 1080);
-
-        [SerializeField]
-        [Range(0.4f, 2f)]
-        private float minUiScale = 0.7f;
-
-        [SerializeField]
-        [Range(0.5f, 3f)]
-        private float maxUiScale = 1.6f;
-
-        [SerializeField]
-        [Min(0.1f)]
-        private float copyToastDuration = 1f;
+        private RuntimeConsoleTheme theme;
 
         private readonly List<LogEntry> _entries = new List<LogEntry>(256);
         private readonly Queue<PendingLog> _pendingLogs = new Queue<PendingLog>(128);
@@ -118,45 +99,135 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         private Canvas _uiBlockerCanvas;
         private RectTransform _uiBlockerRect;
         private Image _uiBlockerImage;
+        private RuntimeConsoleTheme _appliedTheme;
+        private bool _logSubscriptionActive;
+        private bool _hasLoggedMissingThemeError;
 
         private void Awake()
         {
             _windowId = GetInstanceID();
             _isOpen = openOnStart;
-            Application.logMessageReceivedThreaded += OnLogMessageReceived;
+
+            if (!EnsureThemeAssigned())
+            {
+                return;
+            }
+
             EnsureUiBlocker();
             SetUiBlockerActive(_isOpen);
         }
 
         private void OnDestroy()
         {
-            Application.logMessageReceivedThreaded -= OnLogMessageReceived;
+            UnsubscribeFromLogEvents();
             RestoreTimeScaleIfNeeded();
             DestroyUiBlocker();
-            SafeDestroyTexture(ref _windowBackgroundTexture);
-            SafeDestroyTexture(ref _buttonTexture);
-            SafeDestroyTexture(ref _buttonHoverOverlayTexture);
-            SafeDestroyTexture(ref _buttonPressedOverlayTexture);
-            SafeDestroyTexture(ref _activeButtonTexture);
-            SafeDestroyTexture(ref _copyButtonTexture);
-            SafeDestroyTexture(ref _copyErrorsButtonTexture);
-            SafeDestroyTexture(ref _rowEvenTexture);
-            SafeDestroyTexture(ref _rowOddTexture);
+            ReleaseStyleResources();
         }
 
         private void OnDisable()
         {
+            UnsubscribeFromLogEvents();
             RestoreTimeScaleIfNeeded();
-            SetUiBlockerActive(false);
+
+            if (_uiBlockerCanvas != null)
+            {
+                _uiBlockerCanvas.gameObject.SetActive(false);
+            }
         }
 
         private void OnEnable()
         {
+            if (!EnsureThemeAssigned())
+            {
+                return;
+            }
+
+            SubscribeToLogEvents();
+            EnsureUiBlocker();
             SetUiBlockerActive(_isOpen);
+        }
+
+        private void OnValidate()
+        {
+            ReleaseStyleResources();
+
+            if (!Application.isPlaying || !enabled)
+            {
+                return;
+            }
+
+            EnsureThemeAssigned();
+        }
+
+        public void SetTheme(RuntimeConsoleTheme runtimeConsoleTheme)
+        {
+            theme = runtimeConsoleTheme;
+            _hasLoggedMissingThemeError = false;
+            ReleaseStyleResources();
+
+            if (Application.isPlaying && enabled)
+            {
+                EnsureThemeAssigned();
+            }
+        }
+
+        private bool EnsureThemeAssigned()
+        {
+            if (theme != null)
+            {
+                _hasLoggedMissingThemeError = false;
+                return true;
+            }
+
+            if (!_hasLoggedMissingThemeError)
+            {
+                Debug.LogException(
+                    new InvalidOperationException(
+                        $"{nameof(RuntimeConsoleWindow)} requires a {nameof(RuntimeConsoleTheme)} asset. Assign it in the inspector."),
+                    this);
+                _hasLoggedMissingThemeError = true;
+            }
+
+            _isOpen = false;
+            if (_uiBlockerCanvas != null)
+            {
+                _uiBlockerCanvas.gameObject.SetActive(false);
+            }
+
+            enabled = false;
+            return false;
+        }
+
+        private void SubscribeToLogEvents()
+        {
+            if (_logSubscriptionActive)
+            {
+                return;
+            }
+
+            Application.logMessageReceivedThreaded += OnLogMessageReceived;
+            _logSubscriptionActive = true;
+        }
+
+        private void UnsubscribeFromLogEvents()
+        {
+            if (!_logSubscriptionActive)
+            {
+                return;
+            }
+
+            Application.logMessageReceivedThreaded -= OnLogMessageReceived;
+            _logSubscriptionActive = false;
         }
 
         private void Update()
         {
+            if (theme == null)
+            {
+                return;
+            }
+
             FlushPendingLogs();
             AnimateButtonStates();
 
@@ -168,6 +239,11 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
         private void OnGUI()
         {
+            if (theme == null)
+            {
+                return;
+            }
+
             HandleToggleHotkeyFromGuiEvent();
             UpdatePointerStateFromGuiEvent();
 
@@ -277,8 +353,9 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         private void DrawWindow(int windowId)
         {
             _buttonDrawIndex = 0;
+            var activeTheme = theme;
             DrawControlsRow();
-            GUILayout.Space(6f);
+            GUILayout.Space(activeTheme.ControlsToEntriesSpacing);
             DrawLogList();
             DrawBottomBar();
 
@@ -311,9 +388,9 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
             GUILayout.Label("|", _toolbarLabelStyle, GUILayout.Width(8f), GUILayout.Height(22f));
 
-            DrawFilterToggle(ref showLogs, "I", Color.white);
-            DrawFilterToggle(ref showWarnings, "W", new Color(1f, 0.82f, 0.2f));
-            DrawFilterToggle(ref showErrors, "E", new Color(1f, 0.33f, 0.33f));
+            DrawFilterToggle(ref showLogs, "I", theme.InfoFilterColor);
+            DrawFilterToggle(ref showWarnings, "W", theme.WarningFilterColor);
+            DrawFilterToggle(ref showErrors, "E", theme.ErrorFilterColor);
 
             GUILayout.FlexibleSpace();
 
@@ -327,7 +404,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
         private void DrawBottomBar()
         {
-            GUILayout.Space(4f);
+            GUILayout.Space(theme.BottomBarTopSpacing);
             GUILayout.BeginHorizontal();
 
             GUILayout.FlexibleSpace();
@@ -339,7 +416,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 NotifyCopiedToClipboard();
             }
 
-            GUILayout.Space(6f);
+            GUILayout.Space(theme.BottomButtonsSpacing);
 
             if (DrawToolbarButton("Copy ALL", _copyButtonStyle, GUILayout.Width(80f), GUILayout.Height(24f)))
             {
@@ -358,11 +435,12 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
 
             var previousColor = GUI.color;
-            GUI.color = new Color(0.55f, 1f, 0.62f, alpha);
+            var toastColor = theme.CopyToastTextColor;
+            GUI.color = new Color(toastColor.r, toastColor.g, toastColor.b, toastColor.a * alpha);
             GUILayout.Label("Copied to clipboard!", _copyToastStyle, GUILayout.Height(24f));
             GUI.color = previousColor;
 
-            GUILayout.Space(8f);
+            GUILayout.Space(theme.CopyToastRightSpacing);
         }
 
         private void DrawFilterToggle(ref bool value, string label, Color color)
@@ -390,18 +468,18 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
             if (Event.current.type == EventType.Repaint)
             {
-                state.HoverAmount = Mathf.MoveTowards(state.HoverAmount, isHovered ? 1f : 0f, Time.unscaledDeltaTime * 14f);
+                state.HoverAmount = Mathf.MoveTowards(state.HoverAmount, isHovered ? 1f : 0f, Time.unscaledDeltaTime * theme.HoverFadeSpeed);
             }
 
             var drawRect = layoutRect;
-            var pulseScale = 1f + Mathf.Sin((1f - state.ClickPulse) * Mathf.PI) * 0.04f * state.ClickPulse;
+            var pulseScale = 1f + Mathf.Sin((1f - state.ClickPulse) * Mathf.PI) * theme.ClickPulseScale * state.ClickPulse;
             drawRect = ScaleRectAroundCenter(drawRect, pulseScale);
             if (isPressed)
             {
                 // Tiny shrink + down-right offset to simulate physical button depth.
-                drawRect = ScaleRectAroundCenter(drawRect, 0.975f);
-                drawRect.x += 1f;
-                drawRect.y += 1f;
+                drawRect = ScaleRectAroundCenter(drawRect, theme.PressedScale);
+                drawRect.x += theme.PressedOffset.x;
+                drawRect.y += theme.PressedOffset.y;
             }
 
             var clicked = GUI.Button(drawRect, content, style);
@@ -424,7 +502,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 return;
             }
 
-            var hoverAlpha = 0.9f * state.HoverAmount;
+            var hoverAlpha = theme.HoverOverlayAlphaMultiplier * state.HoverAmount;
             if (hoverAlpha > 0.001f)
             {
                 DrawTextureWithAlpha(drawRect, _buttonHoverOverlayTexture, hoverAlpha);
@@ -432,10 +510,10 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
             if (isPressed)
             {
-                DrawTextureWithAlpha(drawRect, _buttonPressedOverlayTexture, 1f);
+                DrawTextureWithAlpha(drawRect, _buttonPressedOverlayTexture, theme.PressedOverlayAlphaMultiplier);
             }
 
-            var clickFlashAlpha = state.ClickPulse * 0.9f;
+            var clickFlashAlpha = state.ClickPulse * theme.ClickFlashAlphaMultiplier;
             if (clickFlashAlpha > 0.001f)
             {
                 DrawTextureWithAlpha(drawRect, _buttonHoverOverlayTexture, clickFlashAlpha);
@@ -443,12 +521,18 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
             if (isHovered)
             {
-                var borderAlpha = Mathf.Clamp01(state.HoverAmount * 0.8f + state.ClickPulse * 0.4f);
+                var borderAlpha = Mathf.Clamp01(
+                    state.HoverAmount * theme.HoverBorderHoverContribution +
+                    state.ClickPulse * theme.HoverBorderClickContribution);
+
+                var borderColor = isPressed
+                    ? theme.ButtonPressedBorderColor
+                    : WithAlpha(theme.ButtonHoverBorderColor, theme.HoverBorderBaseAlpha + borderAlpha * theme.HoverBorderBoostAlpha);
+
                 DrawRectBorder(
                     drawRect,
-                    isPressed
-                        ? new Color(0.06f, 0.06f, 0.06f, 0.9f)
-                        : new Color(0.95f, 0.95f, 0.95f, 0.15f + borderAlpha * 0.35f));
+                    borderColor,
+                    theme.ButtonBorderThickness);
             }
         }
 
@@ -473,6 +557,12 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             GUI.color = prevColor;
         }
 
+        private static Color WithAlpha(Color color, float alpha)
+        {
+            color.a = Mathf.Clamp01(alpha);
+            return color;
+        }
+
         private void AnimateButtonStates()
         {
             if (_buttonVisualStates.Count == 0)
@@ -491,10 +581,10 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             {
                 var key = _buttonStateKeyBuffer[i];
                 var state = _buttonVisualStates[key];
-                state.ClickPulse = Mathf.MoveTowards(state.ClickPulse, 0f, dt * 6f);
+                state.ClickPulse = Mathf.MoveTowards(state.ClickPulse, 0f, dt * theme.ClickPulseDecaySpeed);
 
                 var framesWithoutUse = Time.frameCount - state.LastSeenFrame;
-                if (framesWithoutUse > 180 && state.ClickPulse <= 0.001f && state.HoverAmount <= 0.001f)
+                if (framesWithoutUse > theme.ButtonStateRetentionFrames && state.ClickPulse <= 0.001f && state.HoverAmount <= 0.001f)
                 {
                     _buttonVisualStates.Remove(key);
                     continue;
@@ -629,8 +719,9 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             return IsErrorType(entry.Type) && !string.IsNullOrWhiteSpace(entry.Stacktrace);
         }
 
-        private void SetTraceFontSize(int size)
+        private void SetTraceFontSize(int size, int stackTraceFontOffset, int stackTraceMinFontSize)
         {
+            size = Mathf.Max(8, size);
             _rowHeight = Mathf.Max(20f, size + 8f);
 
             if (_countStyle != null)
@@ -639,7 +730,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 _logStyle.fontSize = size;
                 _warningStyle.fontSize = size;
                 _errorStyle.fontSize = size;
-                _stackTraceStyle.fontSize = Mathf.Max(9, size - 1);
+                _stackTraceStyle.fontSize = Mathf.Max(stackTraceMinFontSize, size + stackTraceFontOffset);
             }
         }
 
@@ -712,25 +803,20 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
         private void UpdateUiScale()
         {
-            if (!autoScaleWithScreen)
+            if (!theme.AutoScaleWithScreen)
             {
                 _uiScale = 1f;
                 return;
             }
 
-            var refWidth = Mathf.Max(1, referenceResolution.x);
-            var refHeight = Mathf.Max(1, referenceResolution.y);
+            var refWidth = Mathf.Max(1, theme.ReferenceResolution.x);
+            var refHeight = Mathf.Max(1, theme.ReferenceResolution.y);
 
             var widthScale = Screen.width / (float)refWidth;
             var heightScale = Screen.height / (float)refHeight;
             var resolvedScale = Mathf.Min(widthScale, heightScale);
 
-            if (maxUiScale < minUiScale)
-            {
-                maxUiScale = minUiScale;
-            }
-
-            _uiScale = Mathf.Clamp(resolvedScale, minUiScale, maxUiScale);
+            _uiScale = Mathf.Clamp(resolvedScale, theme.MinUiScale, theme.MaxUiScale);
         }
 
         private void ClampWindowToVisibleArea()
@@ -770,6 +856,11 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
         private void SetUiBlockerActive(bool isActive)
         {
+            if (!isActive && _uiBlockerCanvas == null)
+            {
+                return;
+            }
+
             EnsureUiBlocker();
 
             if (_uiBlockerCanvas != null)
@@ -885,7 +976,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
         private void NotifyCopiedToClipboard()
         {
-            _copyToastTimeLeft = Mathf.Max(0.1f, copyToastDuration);
+            _copyToastTimeLeft = theme.CopyToastDuration;
         }
 
         private float GetCopyToastAlpha()
@@ -895,7 +986,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 return 0f;
             }
 
-            var duration = Mathf.Max(0.1f, copyToastDuration);
+            var duration = theme.CopyToastDuration;
             var t = Mathf.Clamp01(_copyToastTimeLeft / duration);
             // Slightly slower fade at the beginning so it remains readable.
             return Mathf.Pow(t, 0.7f);
@@ -934,6 +1025,9 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         private string BuildClipboardText()
         {
             var builder = new StringBuilder();
+            RuntimeConsoleCopyHeaderData.AppendHeader(builder, "All visible entries");
+            var copiedCount = 0;
+
             for (var i = 0; i < _entries.Count; i++)
             {
                 var entry = _entries[i];
@@ -942,15 +1036,13 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                     continue;
                 }
 
-                builder.Append(entry.Count);
-                builder.Append(' ');
-                builder.Append(entry.DisplayLine);
-                builder.Append('\n');
+                AppendEntryToClipboard(builder, entry);
+                copiedCount++;
+            }
 
-                if (includeStackTraceInCopy && !string.IsNullOrWhiteSpace(entry.Stacktrace))
-                {
-                    builder.AppendLine(entry.Stacktrace.TrimEnd());
-                }
+            if (copiedCount == 0)
+            {
+                builder.AppendLine("No entries found for current filters.");
             }
 
             return builder.ToString();
@@ -960,10 +1052,11 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         {
             if (maxErrors <= 0)
             {
-                return string.Empty;
+                maxErrors = 1;
             }
 
             var builder = new StringBuilder();
+            RuntimeConsoleCopyHeaderData.AppendHeader(builder, $"Latest {maxErrors} errors");
             var copiedCount = 0;
 
             for (var i = _entries.Count - 1; i >= 0 && copiedCount < maxErrors; i--)
@@ -980,7 +1073,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
             if (copiedCount == 0)
             {
-                return "No error entries found.";
+                builder.AppendLine("No error entries found.");
             }
 
             return builder.ToString();
@@ -1001,34 +1094,64 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             builder.AppendLine();
         }
 
+        private void ReleaseStyleResources()
+        {
+            _windowStyle = null;
+            _toolbarLabelStyle = null;
+            _buttonStyle = null;
+            _activeButtonStyle = null;
+            _copyButtonStyle = null;
+            _copyErrorsButtonStyle = null;
+            _copyToastStyle = null;
+            _countStyle = null;
+            _logStyle = null;
+            _warningStyle = null;
+            _errorStyle = null;
+            _stackTraceStyle = null;
+            _appliedTheme = null;
+
+            SafeDestroyTexture(ref _windowBackgroundTexture);
+            SafeDestroyTexture(ref _buttonTexture);
+            SafeDestroyTexture(ref _buttonHoverOverlayTexture);
+            SafeDestroyTexture(ref _buttonPressedOverlayTexture);
+            SafeDestroyTexture(ref _activeButtonTexture);
+            SafeDestroyTexture(ref _copyButtonTexture);
+            SafeDestroyTexture(ref _copyErrorsButtonTexture);
+            SafeDestroyTexture(ref _rowEvenTexture);
+            SafeDestroyTexture(ref _rowOddTexture);
+        }
+
         private void EnsureStyles()
         {
-            if (_windowStyle != null)
+            if (_windowStyle != null && ReferenceEquals(_appliedTheme, theme))
             {
                 return;
             }
 
-            _windowBackgroundTexture = CreateSolidTexture(new Color(0.06f, 0.08f, 0.11f, 0.98f));
-            _buttonTexture = CreateSolidTexture(new Color(0.24f, 0.24f, 0.24f, 1f));
-            _buttonHoverOverlayTexture = CreateSolidTexture(new Color(1f, 1f, 1f, 0.08f));
-            _buttonPressedOverlayTexture = CreateSolidTexture(new Color(0f, 0f, 0f, 0.18f));
-            _activeButtonTexture = CreateSolidTexture(new Color(0.28f, 0.36f, 0.48f, 1f));
-            _copyButtonTexture = CreateSolidTexture(new Color(0.45f, 0.31f, 0.12f, 1f));
-            _copyErrorsButtonTexture = CreateSolidTexture(new Color(0.18f, 0.42f, 0.22f, 1f));
-            _rowEvenTexture = CreateSolidTexture(new Color(0.11f, 0.13f, 0.16f, 1f));
-            _rowOddTexture = CreateSolidTexture(new Color(0.07f, 0.09f, 0.12f, 1f));
+            ReleaseStyleResources();
+            _appliedTheme = theme;
+
+            _windowBackgroundTexture = CreateSolidTexture(theme.WindowBackgroundColor);
+            _buttonTexture = CreateSolidTexture(theme.ButtonColor);
+            _buttonHoverOverlayTexture = CreateSolidTexture(theme.ButtonHoverOverlayColor);
+            _buttonPressedOverlayTexture = CreateSolidTexture(theme.ButtonPressedOverlayColor);
+            _activeButtonTexture = CreateSolidTexture(theme.ActiveButtonColor);
+            _copyButtonTexture = CreateSolidTexture(theme.CopyAllButtonColor);
+            _copyErrorsButtonTexture = CreateSolidTexture(theme.CopyErrorsButtonColor);
+            _rowEvenTexture = CreateSolidTexture(theme.RowEvenColor);
+            _rowOddTexture = CreateSolidTexture(theme.RowOddColor);
 
             _windowStyle = new GUIStyle(GUI.skin.window)
             {
-                padding = new RectOffset(8, 8, 12, 8),
-                border = new RectOffset(1, 1, 1, 1)
+                padding = CopyRectOffset(theme.WindowPadding, 8, 8, 12, 8),
+                border = CopyRectOffset(theme.WindowBorder, 1, 1, 1, 1)
             };
             ApplyBackgroundToAllStates(_windowStyle, _windowBackgroundTexture, Color.white);
 
             _toolbarLabelStyle = new GUIStyle(GUI.skin.label)
             {
-                fontSize = 15,
-                normal = { textColor = Color.white },
+                fontSize = theme.ToolbarLabelFontSize,
+                normal = { textColor = theme.ToolbarLabelTextColor },
                 alignment = TextAnchor.MiddleLeft
             };
 
@@ -1038,9 +1161,9 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 hover = { background = _buttonTexture, textColor = Color.white },
                 active = { background = _buttonTexture, textColor = Color.white },
                 focused = { background = _buttonTexture, textColor = Color.white },
-                fontSize = 12,
-                margin = new RectOffset(2, 2, 0, 0),
-                padding = new RectOffset(6, 6, 1, 1),
+                fontSize = theme.ButtonFontSize,
+                margin = CopyRectOffset(theme.ButtonMargin, 2, 2, 0, 0),
+                padding = CopyRectOffset(theme.ButtonPadding, 6, 6, 1, 1),
                 alignment = TextAnchor.MiddleCenter
             };
 
@@ -1070,43 +1193,53 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
             _copyToastStyle = new GUIStyle(_toolbarLabelStyle)
             {
-                fontSize = 12,
+                fontSize = theme.CopyToastFontSize,
                 alignment = TextAnchor.MiddleRight
             };
 
             _countStyle = new GUIStyle(GUI.skin.label)
             {
                 alignment = TextAnchor.UpperLeft,
-                normal = { textColor = Color.white },
+                normal = { textColor = theme.CountTextColor },
                 clipping = TextClipping.Clip
             };
 
             _logStyle = new GUIStyle(GUI.skin.label)
             {
                 alignment = TextAnchor.UpperLeft,
-                normal = { textColor = new Color(0.92f, 0.92f, 0.92f, 1f) },
+                normal = { textColor = theme.LogTextColor },
                 wordWrap = true,
-                richText = true,
+                richText = theme.EnableRichText,
                 clipping = TextClipping.Clip
             };
 
             _warningStyle = new GUIStyle(_logStyle)
             {
-                normal = { textColor = new Color(1f, 0.82f, 0.2f, 1f) }
+                normal = { textColor = theme.WarningTextColor }
             };
 
             _errorStyle = new GUIStyle(_logStyle)
             {
-                normal = { textColor = new Color(1f, 0.39f, 0.39f, 1f) }
+                normal = { textColor = theme.ErrorTextColor }
             };
 
             _stackTraceStyle = new GUIStyle(_logStyle)
             {
-                normal = { textColor = new Color(0.74f, 0.74f, 0.74f, 1f) },
-                richText = true
+                normal = { textColor = theme.StackTraceTextColor },
+                richText = theme.EnableRichText
             };
 
-            SetTraceFontSize(traceFontSize);
+            SetTraceFontSize(theme.TraceFontSize, theme.StackTraceFontOffset, theme.StackTraceMinFontSize);
+        }
+
+        private static RectOffset CopyRectOffset(RectOffset source, int defaultLeft, int defaultRight, int defaultTop, int defaultBottom)
+        {
+            if (source == null)
+            {
+                return new RectOffset(defaultLeft, defaultRight, defaultTop, defaultBottom);
+            }
+
+            return new RectOffset(source.left, source.right, source.top, source.bottom);
         }
 
         private static Texture2D CreateSolidTexture(Color color)
