@@ -66,6 +66,8 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         private readonly List<LogEntry> _entries = new List<LogEntry>(256);
         private readonly Queue<PendingLog> _pendingLogs = new Queue<PendingLog>(128);
         private readonly List<PendingLog> _flushBuffer = new List<PendingLog>(128);
+        private readonly Dictionary<int, ButtonVisualState> _buttonVisualStates = new Dictionary<int, ButtonVisualState>(32);
+        private readonly List<int> _buttonStateKeyBuffer = new List<int>(32);
         private readonly object _pendingLock = new object();
 
         private bool _isOpen;
@@ -76,6 +78,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         private float _lastContentHeight;
         private float _uiScale = 1f;
         private int _windowId;
+        private int _buttonDrawIndex;
         private int _nextEntryId;
         private int _selectedEntryId = -1;
 
@@ -124,6 +127,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         private void Update()
         {
             FlushPendingLogs();
+            AnimateButtonStates();
         }
 
         private void OnGUI()
@@ -225,6 +229,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
         private void DrawWindow(int windowId)
         {
+            _buttonDrawIndex = 0;
             DrawTitleBar();
             DrawControlsRow();
             DrawLogList();
@@ -305,25 +310,154 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
         private bool DrawToolbarButton(string text, GUIStyle style, params GUILayoutOption[] options)
         {
-            var clicked = GUILayout.Button(text, style, options);
-            DrawToolbarButtonFeedbackOverlay();
+            var content = new GUIContent(text);
+            var layoutRect = GUILayoutUtility.GetRect(content, style, options);
+            var buttonId = _buttonDrawIndex++;
+
+            var isHovered = layoutRect.Contains(Event.current.mousePosition);
+            var isPressed = isHovered && _isLeftMouseDown;
+            var state = GetButtonVisualState(buttonId);
+
+            if (Event.current.type == EventType.Repaint)
+            {
+                state.HoverAmount = Mathf.MoveTowards(state.HoverAmount, isHovered ? 1f : 0f, Time.unscaledDeltaTime * 14f);
+            }
+
+            var drawRect = layoutRect;
+            var pulseScale = 1f + Mathf.Sin((1f - state.ClickPulse) * Mathf.PI) * 0.04f * state.ClickPulse;
+            drawRect = ScaleRectAroundCenter(drawRect, pulseScale);
+            if (isPressed)
+            {
+                // Tiny shrink + down-right offset to simulate physical button depth.
+                drawRect = ScaleRectAroundCenter(drawRect, 0.975f);
+                drawRect.x += 1f;
+                drawRect.y += 1f;
+            }
+
+            var clicked = GUI.Button(drawRect, content, style);
+            if (clicked)
+            {
+                state.ClickPulse = 1f;
+            }
+
+            state.LastSeenFrame = Time.frameCount;
+            _buttonVisualStates[buttonId] = state;
+
+            DrawToolbarButtonFeedbackOverlay(drawRect, isHovered, isPressed, state);
             return clicked;
         }
 
-        private void DrawToolbarButtonFeedbackOverlay()
+        private void DrawToolbarButtonFeedbackOverlay(Rect drawRect, bool isHovered, bool isPressed, ButtonVisualState state)
         {
             if (Event.current.type != EventType.Repaint)
             {
                 return;
             }
 
-            var rect = GUILayoutUtility.GetLastRect();
-            if (!rect.Contains(Event.current.mousePosition))
+            var hoverAlpha = 0.9f * state.HoverAmount;
+            if (hoverAlpha > 0.001f)
+            {
+                DrawTextureWithAlpha(drawRect, _buttonHoverOverlayTexture, hoverAlpha);
+            }
+
+            if (isPressed)
+            {
+                DrawTextureWithAlpha(drawRect, _buttonPressedOverlayTexture, 1f);
+            }
+
+            var clickFlashAlpha = state.ClickPulse * 0.9f;
+            if (clickFlashAlpha > 0.001f)
+            {
+                DrawTextureWithAlpha(drawRect, _buttonHoverOverlayTexture, clickFlashAlpha);
+            }
+
+            if (isHovered)
+            {
+                var borderAlpha = Mathf.Clamp01(state.HoverAmount * 0.8f + state.ClickPulse * 0.4f);
+                DrawRectBorder(
+                    drawRect,
+                    isPressed
+                        ? new Color(0.06f, 0.06f, 0.06f, 0.9f)
+                        : new Color(0.95f, 0.95f, 0.95f, 0.15f + borderAlpha * 0.35f));
+            }
+        }
+
+        private void DrawTextureWithAlpha(Rect rect, Texture2D texture, float alpha)
+        {
+            var previousColor = GUI.color;
+            GUI.color = new Color(1f, 1f, 1f, Mathf.Clamp01(alpha));
+            GUI.DrawTexture(rect, texture);
+            GUI.color = previousColor;
+        }
+
+        private static void DrawRectBorder(Rect rect, Color color, float thickness = 1f)
+        {
+            var prevColor = GUI.color;
+            GUI.color = color;
+
+            GUI.DrawTexture(new Rect(rect.x, rect.y, rect.width, thickness), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(rect.x, rect.yMax - thickness, rect.width, thickness), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(rect.x, rect.y, thickness, rect.height), Texture2D.whiteTexture);
+            GUI.DrawTexture(new Rect(rect.xMax - thickness, rect.y, thickness, rect.height), Texture2D.whiteTexture);
+
+            GUI.color = prevColor;
+        }
+
+        private void AnimateButtonStates()
+        {
+            if (_buttonVisualStates.Count == 0)
             {
                 return;
             }
 
-            GUI.DrawTexture(rect, _isLeftMouseDown ? _buttonPressedOverlayTexture : _buttonHoverOverlayTexture);
+            _buttonStateKeyBuffer.Clear();
+            foreach (var pair in _buttonVisualStates)
+            {
+                _buttonStateKeyBuffer.Add(pair.Key);
+            }
+
+            var dt = Time.unscaledDeltaTime;
+            for (var i = 0; i < _buttonStateKeyBuffer.Count; i++)
+            {
+                var key = _buttonStateKeyBuffer[i];
+                var state = _buttonVisualStates[key];
+                state.ClickPulse = Mathf.MoveTowards(state.ClickPulse, 0f, dt * 6f);
+
+                var framesWithoutUse = Time.frameCount - state.LastSeenFrame;
+                if (framesWithoutUse > 180 && state.ClickPulse <= 0.001f && state.HoverAmount <= 0.001f)
+                {
+                    _buttonVisualStates.Remove(key);
+                    continue;
+                }
+
+                _buttonVisualStates[key] = state;
+            }
+        }
+
+        private ButtonVisualState GetButtonVisualState(int buttonId)
+        {
+            if (_buttonVisualStates.TryGetValue(buttonId, out var state))
+            {
+                return state;
+            }
+
+            return default;
+        }
+
+        private static Rect ScaleRectAroundCenter(Rect rect, float scale)
+        {
+            if (Mathf.Approximately(scale, 1f))
+            {
+                return rect;
+            }
+
+            var width = rect.width * scale;
+            var height = rect.height * scale;
+            return new Rect(
+                rect.center.x - width * 0.5f,
+                rect.center.y - height * 0.5f,
+                width,
+                height);
         }
 
         private void DrawLogList()
@@ -827,6 +961,13 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 Count = 1;
                 DisplayLine = $"[{timestamp:HH:mm:ss}] {NormalizeLineBreaks(Condition)}";
             }
+        }
+
+        private struct ButtonVisualState
+        {
+            public float HoverAmount;
+            public float ClickPulse;
+            public int LastSeenFrame;
         }
     }
 }
