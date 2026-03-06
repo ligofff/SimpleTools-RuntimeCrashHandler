@@ -10,100 +10,236 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
     {
         [Header("Window")]
         [SerializeField]
-        private bool openOnStart;
+        protected bool openOnStart;
 
         [SerializeField]
-        private KeyCode toggleKey = KeyCode.BackQuote;
+        protected KeyCode toggleKey = KeyCode.BackQuote;
 
         [SerializeField]
-        private Rect windowRect = new Rect(20f, 20f, 1000f, 620f);
+        protected Rect windowRect = new Rect(20f, 20f, 1000f, 620f);
 
         [Header("Log behavior")]
         [SerializeField]
         [Min(10)]
-        private int maxEntries = 2000;
+        protected int maxEntries = 2000;
 
         [SerializeField]
-        private bool collapseDuplicates = true;
+        protected bool collapseDuplicates = true;
 
         [SerializeField]
-        private bool autoOpenOnError = true;
+        protected bool autoOpenOnError = true;
 
         [SerializeField]
-        private bool pauseOnError;
+        protected bool pauseOnError;
 
         [SerializeField]
-        private bool includeStackTraceInCopy = true;
+        protected bool includeStackTraceInCopy = true;
 
         [Header("Filters")]
         [SerializeField]
-        private bool showLogs = true;
+        protected bool showLogs = true;
 
         [SerializeField]
-        private bool showWarnings = true;
+        protected bool showWarnings = true;
 
         [SerializeField]
-        private bool showErrors = true;
+        protected bool showErrors = true;
 
         [Header("Theme")]
         [SerializeField]
-        private RuntimeConsoleTheme theme;
+        protected RuntimeConsoleTheme theme;
 
-        private readonly List<LogEntry> _entries = new List<LogEntry>(256);
-        private readonly Queue<PendingLog> _pendingLogs = new Queue<PendingLog>(128);
-        private readonly List<PendingLog> _flushBuffer = new List<PendingLog>(128);
-        private readonly Dictionary<int, ButtonVisualState> _buttonVisualStates = new Dictionary<int, ButtonVisualState>(32);
-        private readonly List<int> _buttonStateKeyBuffer = new List<int>(32);
-        private readonly object _pendingLock = new object();
+        protected readonly List<LogEntry> _entries = new List<LogEntry>(256);
+        protected readonly Queue<PendingLog> _pendingLogs = new Queue<PendingLog>(128);
+        protected readonly List<PendingLog> _flushBuffer = new List<PendingLog>(128);
+        protected readonly Dictionary<int, ButtonVisualState> _buttonVisualStates = new Dictionary<int, ButtonVisualState>(32);
+        protected readonly List<int> _buttonStateKeyBuffer = new List<int>(32);
+        protected readonly object _pendingLock = new object();
 
-        private bool _isOpen;
-        private bool _isLeftMouseDown;
-        private bool _pausedByConsole;
-        private Vector2 _scrollPosition;
-        private bool _scrollToBottom;
-        private float _lastScrollViewHeight;
-        private float _lastContentHeight;
-        private float _copyToastTimeLeft;
-        private float _timeScaleBeforePause = 1f;
-        private float _uiScale = 1f;
-        private int _windowId;
-        private int _buttonDrawIndex;
-        private int _nextEntryId;
-        private int _selectedEntryId = -1;
+        protected bool _isOpen;
+        protected bool _isLeftMouseDown;
+        protected bool _pausedByConsole;
+        protected Vector2 _scrollPosition;
+        protected bool _scrollToBottom;
+        protected float _lastScrollViewHeight;
+        protected float _lastContentHeight;
+        protected float _copyToastTimeLeft;
+        protected float _timeScaleBeforePause = 1f;
+        protected float _uiScale = 1f;
+        protected int _windowId;
+        protected int _buttonDrawIndex;
+        protected int _nextEntryId;
+        protected int _selectedEntryId = -1;
 
-        private GUIStyle _windowStyle;
-        private GUIStyle _toolbarLabelStyle;
-        private GUIStyle _buttonStyle;
-        private GUIStyle _activeButtonStyle;
-        private GUIStyle _copyButtonStyle;
-        private GUIStyle _copyErrorsButtonStyle;
-        private GUIStyle _copyToastStyle;
-        private GUIStyle _countStyle;
-        private GUIStyle _logStyle;
-        private GUIStyle _warningStyle;
-        private GUIStyle _errorStyle;
-        private GUIStyle _stackTraceStyle;
+        protected GUIStyle _windowStyle;
+        protected GUIStyle _toolbarLabelStyle;
+        protected GUIStyle _buttonStyle;
+        protected GUIStyle _activeButtonStyle;
+        protected GUIStyle _copyButtonStyle;
+        protected GUIStyle _copyErrorsButtonStyle;
+        protected GUIStyle _copyToastStyle;
+        protected GUIStyle _countStyle;
+        protected GUIStyle _logStyle;
+        protected GUIStyle _warningStyle;
+        protected GUIStyle _errorStyle;
+        protected GUIStyle _stackTraceStyle;
 
-        private Texture2D _windowBackgroundTexture;
-        private Texture2D _buttonTexture;
-        private Texture2D _buttonHoverOverlayTexture;
-        private Texture2D _buttonPressedOverlayTexture;
-        private Texture2D _activeButtonTexture;
-        private Texture2D _copyButtonTexture;
-        private Texture2D _copyErrorsButtonTexture;
-        private Texture2D _rowEvenTexture;
-        private Texture2D _rowOddTexture;
+        protected Texture2D _windowBackgroundTexture;
+        protected Texture2D _buttonTexture;
+        protected Texture2D _buttonHoverOverlayTexture;
+        protected Texture2D _buttonPressedOverlayTexture;
+        protected Texture2D _activeButtonTexture;
+        protected Texture2D _copyButtonTexture;
+        protected Texture2D _copyErrorsButtonTexture;
+        protected Texture2D _rowEvenTexture;
+        protected Texture2D _rowOddTexture;
 
-        private float _rowHeight;
+        protected float _rowHeight;
 
-        private Canvas _uiBlockerCanvas;
-        private RectTransform _uiBlockerRect;
-        private Image _uiBlockerImage;
-        private RuntimeConsoleTheme _appliedTheme;
-        private bool _logSubscriptionActive;
-        private bool _hasLoggedMissingThemeError;
+        protected Canvas _uiBlockerCanvas;
+        protected RectTransform _uiBlockerRect;
+        protected Image _uiBlockerImage;
+        protected RuntimeConsoleTheme _appliedTheme;
+        protected bool _logSubscriptionActive;
+        protected bool _hasLoggedMissingThemeError;
 
-        private void Awake()
+        public bool IsOpen => _isOpen;
+        public bool IsPausedByConsole => _pausedByConsole;
+        public float CurrentUiScale => _uiScale;
+        public int EntryCount => _entries.Count;
+        public Vector2 ScrollPosition => _scrollPosition;
+        public int SelectedEntryId => _selectedEntryId;
+        public bool OpenOnStart
+        {
+            get => openOnStart;
+            set => openOnStart = value;
+        }
+
+        public KeyCode ToggleKey
+        {
+            get => toggleKey;
+            set => toggleKey = value;
+        }
+
+        public int MaxEntries
+        {
+            get => maxEntries;
+            set
+            {
+                maxEntries = Mathf.Max(10, value);
+                TrimEntriesToCapacity();
+            }
+        }
+
+        public bool CollapseDuplicates
+        {
+            get => collapseDuplicates;
+            set => collapseDuplicates = value;
+        }
+
+        public bool AutoOpenOnError
+        {
+            get => autoOpenOnError;
+            set => autoOpenOnError = value;
+        }
+
+        public bool PauseOnError
+        {
+            get => pauseOnError;
+            set
+            {
+                pauseOnError = value;
+                if (!pauseOnError)
+                {
+                    RestoreTimeScaleIfNeeded();
+                }
+            }
+        }
+
+        public bool IncludeStackTraceInCopy
+        {
+            get => includeStackTraceInCopy;
+            set => includeStackTraceInCopy = value;
+        }
+
+        public bool ShowLogsFilter
+        {
+            get => showLogs;
+            set => showLogs = value;
+        }
+
+        public bool ShowWarningsFilter
+        {
+            get => showWarnings;
+            set => showWarnings = value;
+        }
+
+        public bool ShowErrorsFilter
+        {
+            get => showErrors;
+            set => showErrors = value;
+        }
+
+        public Rect WindowRect
+        {
+            get => windowRect;
+            set => windowRect = value;
+        }
+
+        public RuntimeConsoleTheme Theme => theme;
+        public IReadOnlyList<LogEntry> Entries => _entries;
+        protected int CurrentSelectedEntryId
+        {
+            get => _selectedEntryId;
+            set => _selectedEntryId = value;
+        }
+
+        protected Vector2 MutableScrollPosition
+        {
+            get => _scrollPosition;
+            set => _scrollPosition = value;
+        }
+
+        protected virtual float UnscaledDeltaTime => Time.unscaledDeltaTime;
+        protected virtual DateTime GetLogTimestamp() => DateTime.Now;
+        protected virtual float GetCurrentTimeScale() => Time.timeScale;
+        protected virtual void SetCurrentTimeScale(float value) => Time.timeScale = value;
+        protected virtual string BuildDisplayLine(DateTime timestamp, string condition)
+        {
+            return $"[{timestamp:HH:mm:ss}] {NormalizeLineBreaks(condition)}";
+        }
+
+        protected virtual bool CanCollapseWithPrevious(LogEntry previousEntry, string condition, string stacktrace, LogType type)
+        {
+            return previousEntry.Type == type && previousEntry.Condition == condition && previousEntry.Stacktrace == stacktrace;
+        }
+
+        protected virtual void TrimEntriesToCapacity()
+        {
+            while (_entries.Count > maxEntries)
+            {
+                if (_selectedEntryId == _entries[0].Id)
+                {
+                    _selectedEntryId = -1;
+                }
+
+                _entries.RemoveAt(0);
+            }
+        }
+
+        protected virtual void OnConsoleOpened()
+        {
+        }
+
+        protected virtual void OnConsoleClosed()
+        {
+        }
+
+        protected virtual void OnLogsCleared()
+        {
+        }
+
+        protected virtual void Awake()
         {
             _windowId = GetInstanceID();
             _isOpen = openOnStart;
@@ -117,7 +253,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             SetUiBlockerActive(_isOpen);
         }
 
-        private void OnDestroy()
+        protected virtual void OnDestroy()
         {
             UnsubscribeFromLogEvents();
             RestoreTimeScaleIfNeeded();
@@ -125,7 +261,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             ReleaseStyleResources();
         }
 
-        private void OnDisable()
+        protected virtual void OnDisable()
         {
             UnsubscribeFromLogEvents();
             RestoreTimeScaleIfNeeded();
@@ -136,7 +272,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
         }
 
-        private void OnEnable()
+        protected virtual void OnEnable()
         {
             if (!EnsureThemeAssigned())
             {
@@ -148,7 +284,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             SetUiBlockerActive(_isOpen);
         }
 
-        private void OnValidate()
+        protected virtual void OnValidate()
         {
             ReleaseStyleResources();
 
@@ -160,7 +296,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             EnsureThemeAssigned();
         }
 
-        public void SetTheme(RuntimeConsoleTheme runtimeConsoleTheme)
+        public virtual void SetTheme(RuntimeConsoleTheme runtimeConsoleTheme)
         {
             theme = runtimeConsoleTheme;
             _hasLoggedMissingThemeError = false;
@@ -172,7 +308,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
         }
 
-        private bool EnsureThemeAssigned()
+        protected virtual bool EnsureThemeAssigned()
         {
             if (theme != null)
             {
@@ -199,7 +335,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             return false;
         }
 
-        private void SubscribeToLogEvents()
+        protected virtual void SubscribeToLogEvents()
         {
             if (_logSubscriptionActive)
             {
@@ -210,7 +346,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             _logSubscriptionActive = true;
         }
 
-        private void UnsubscribeFromLogEvents()
+        protected virtual void UnsubscribeFromLogEvents()
         {
             if (!_logSubscriptionActive)
             {
@@ -221,7 +357,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             _logSubscriptionActive = false;
         }
 
-        private void Update()
+        protected virtual void Update()
         {
             if (theme == null)
             {
@@ -233,11 +369,11 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
             if (_copyToastTimeLeft > 0f)
             {
-                _copyToastTimeLeft = Mathf.Max(0f, _copyToastTimeLeft - Time.unscaledDeltaTime);
+                _copyToastTimeLeft = Mathf.Max(0f, _copyToastTimeLeft - UnscaledDeltaTime);
             }
         }
 
-        private void OnGUI()
+        protected virtual void OnGUI()
         {
             if (theme == null)
             {
@@ -274,7 +410,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             SyncUiBlockerToWindow();
         }
 
-        private void HandleToggleHotkeyFromGuiEvent()
+        protected virtual void HandleToggleHotkeyFromGuiEvent()
         {
             var currentEvent = Event.current;
             if (currentEvent == null)
@@ -296,7 +432,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             currentEvent.Use();
         }
 
-        private void UpdatePointerStateFromGuiEvent()
+        protected virtual void UpdatePointerStateFromGuiEvent()
         {
             var currentEvent = Event.current;
             if (currentEvent == null)
@@ -316,20 +452,22 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
         }
 
-        public void Open()
+        public virtual void Open()
         {
             _isOpen = true;
             SetUiBlockerActive(true);
+            OnConsoleOpened();
         }
 
-        public void Close()
+        public virtual void Close()
         {
             _isOpen = false;
             RestoreTimeScaleIfNeeded();
             SetUiBlockerActive(false);
+            OnConsoleClosed();
         }
 
-        public void Toggle()
+        public virtual void Toggle()
         {
             if (_isOpen)
             {
@@ -341,16 +479,17 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
         }
 
-        public void ClearLogs()
+        public virtual void ClearLogs()
         {
             _entries.Clear();
             _selectedEntryId = -1;
             _scrollPosition = Vector2.zero;
             _lastScrollViewHeight = 0f;
             _lastContentHeight = 0f;
+            OnLogsCleared();
         }
 
-        private void DrawWindow(int windowId)
+        protected virtual void DrawWindow(int windowId)
         {
             _buttonDrawIndex = 0;
             var activeTheme = theme;
@@ -362,7 +501,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             GUI.DragWindow(new Rect(0f, 0f, windowRect.width - 44f, 24f));
         }
 
-        private void DrawControlsRow()
+        protected virtual void DrawControlsRow()
         {
             GUILayout.BeginHorizontal();
 
@@ -402,7 +541,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             GUILayout.EndHorizontal();
         }
 
-        private void DrawBottomBar()
+        protected virtual void DrawBottomBar()
         {
             GUILayout.Space(theme.BottomBarTopSpacing);
             GUILayout.BeginHorizontal();
@@ -412,21 +551,31 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
             if (DrawToolbarButton("Copy latest 3 errors", _copyErrorsButtonStyle, GUILayout.Width(170f), GUILayout.Height(24f)))
             {
-                GUIUtility.systemCopyBuffer = BuildLatestErrorsClipboardText(3);
-                NotifyCopiedToClipboard();
+                CopyLatestErrorsToClipboard(3);
             }
 
             GUILayout.Space(theme.BottomButtonsSpacing);
 
             if (DrawToolbarButton("Copy ALL", _copyButtonStyle, GUILayout.Width(80f), GUILayout.Height(24f)))
             {
-                GUIUtility.systemCopyBuffer = BuildClipboardText();
-                NotifyCopiedToClipboard();
+                CopyAllVisibleEntriesToClipboard();
             }
             GUILayout.EndHorizontal();
         }
 
-        private void DrawCopyToastLabel()
+        protected virtual void CopyLatestErrorsToClipboard(int maxErrors)
+        {
+            GUIUtility.systemCopyBuffer = BuildLatestErrorsClipboardText(maxErrors);
+            NotifyCopiedToClipboard();
+        }
+
+        protected virtual void CopyAllVisibleEntriesToClipboard()
+        {
+            GUIUtility.systemCopyBuffer = BuildClipboardText();
+            NotifyCopiedToClipboard();
+        }
+
+        protected virtual void DrawCopyToastLabel()
         {
             var alpha = GetCopyToastAlpha();
             if (alpha <= 0.001f)
@@ -443,7 +592,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             GUILayout.Space(theme.CopyToastRightSpacing);
         }
 
-        private void DrawFilterToggle(ref bool value, string label, Color color)
+        protected virtual void DrawFilterToggle(ref bool value, string label, Color color)
         {
             var previousColor = GUI.contentColor;
             GUI.contentColor = color;
@@ -456,7 +605,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             GUI.contentColor = previousColor;
         }
 
-        private bool DrawToolbarButton(string text, GUIStyle style, params GUILayoutOption[] options)
+        protected virtual bool DrawToolbarButton(string text, GUIStyle style, params GUILayoutOption[] options)
         {
             var content = new GUIContent(text);
             var layoutRect = GUILayoutUtility.GetRect(content, style, options);
@@ -468,7 +617,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
             if (Event.current.type == EventType.Repaint)
             {
-                state.HoverAmount = Mathf.MoveTowards(state.HoverAmount, isHovered ? 1f : 0f, Time.unscaledDeltaTime * theme.HoverFadeSpeed);
+                state.HoverAmount = Mathf.MoveTowards(state.HoverAmount, isHovered ? 1f : 0f, UnscaledDeltaTime * theme.HoverFadeSpeed);
             }
 
             var drawRect = layoutRect;
@@ -495,7 +644,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             return clicked;
         }
 
-        private void DrawToolbarButtonFeedbackOverlay(Rect drawRect, bool isHovered, bool isPressed, ButtonVisualState state)
+        protected virtual void DrawToolbarButtonFeedbackOverlay(Rect drawRect, bool isHovered, bool isPressed, ButtonVisualState state)
         {
             if (Event.current.type != EventType.Repaint)
             {
@@ -536,7 +685,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
         }
 
-        private void DrawTextureWithAlpha(Rect rect, Texture2D texture, float alpha)
+        protected virtual void DrawTextureWithAlpha(Rect rect, Texture2D texture, float alpha)
         {
             var previousColor = GUI.color;
             GUI.color = new Color(1f, 1f, 1f, Mathf.Clamp01(alpha));
@@ -544,7 +693,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             GUI.color = previousColor;
         }
 
-        private static void DrawRectBorder(Rect rect, Color color, float thickness = 1f)
+        protected static void DrawRectBorder(Rect rect, Color color, float thickness = 1f)
         {
             var prevColor = GUI.color;
             GUI.color = color;
@@ -557,13 +706,13 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             GUI.color = prevColor;
         }
 
-        private static Color WithAlpha(Color color, float alpha)
+        protected static Color WithAlpha(Color color, float alpha)
         {
             color.a = Mathf.Clamp01(alpha);
             return color;
         }
 
-        private void AnimateButtonStates()
+        protected virtual void AnimateButtonStates()
         {
             if (_buttonVisualStates.Count == 0)
             {
@@ -576,7 +725,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 _buttonStateKeyBuffer.Add(pair.Key);
             }
 
-            var dt = Time.unscaledDeltaTime;
+            var dt = UnscaledDeltaTime;
             for (var i = 0; i < _buttonStateKeyBuffer.Count; i++)
             {
                 var key = _buttonStateKeyBuffer[i];
@@ -594,7 +743,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
         }
 
-        private ButtonVisualState GetButtonVisualState(int buttonId)
+        protected virtual ButtonVisualState GetButtonVisualState(int buttonId)
         {
             if (_buttonVisualStates.TryGetValue(buttonId, out var state))
             {
@@ -604,7 +753,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             return default;
         }
 
-        private static Rect ScaleRectAroundCenter(Rect rect, float scale)
+        protected static Rect ScaleRectAroundCenter(Rect rect, float scale)
         {
             if (Mathf.Approximately(scale, 1f))
             {
@@ -620,7 +769,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 height);
         }
 
-        private void DrawLogList()
+        protected virtual void DrawLogList()
         {
             _scrollPosition = GUILayout.BeginScrollView(_scrollPosition, GUILayout.ExpandHeight(true));
 
@@ -651,7 +800,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
         }
 
-        private float DrawLogRow(LogEntry entry, int rowIndex)
+        protected virtual float DrawLogRow(LogEntry entry, int rowIndex)
         {
             var messageStyle = GetStyleForType(entry.Type);
             var isExpanded = _selectedEntryId == entry.Id;
@@ -660,21 +809,13 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
             if (Event.current.type == EventType.MouseDown && Event.current.button == 0 && rect.Contains(Event.current.mousePosition))
             {
-                if (CanShowStackTrace(entry))
-                {
-                    _selectedEntryId = isExpanded ? -1 : entry.Id;
-                }
-                else
-                {
-                    _selectedEntryId = -1;
-                }
-
+                HandleLogEntryClick(entry, isExpanded);
                 Event.current.Use();
             }
 
             if (Event.current.type == EventType.Repaint)
             {
-                GUI.DrawTexture(rect, rowIndex % 2 == 0 ? _rowEvenTexture : _rowOddTexture);
+                DrawRowBackground(rect, rowIndex);
             }
 
             var messageWidth = rect.width - 34f;
@@ -698,7 +839,23 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             return rect.height;
         }
 
-        private float GetRowHeight(LogEntry entry, GUIStyle messageStyle, bool isExpanded)
+        protected virtual void HandleLogEntryClick(LogEntry entry, bool isExpanded)
+        {
+            if (CanShowStackTrace(entry))
+            {
+                _selectedEntryId = isExpanded ? -1 : entry.Id;
+                return;
+            }
+
+            _selectedEntryId = -1;
+        }
+
+        protected virtual void DrawRowBackground(Rect rect, int rowIndex)
+        {
+            GUI.DrawTexture(rect, rowIndex % 2 == 0 ? _rowEvenTexture : _rowOddTexture);
+        }
+
+        protected virtual float GetRowHeight(LogEntry entry, GUIStyle messageStyle, bool isExpanded)
         {
             // Use the window width as an estimate before layout reserves exact row rect.
             var estimatedMessageWidth = Mathf.Max(120f, windowRect.width - 80f);
@@ -714,12 +871,12 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             return Mathf.Max(_rowHeight, contentHeight);
         }
 
-        private static bool CanShowStackTrace(LogEntry entry)
+        protected virtual bool CanShowStackTrace(LogEntry entry)
         {
             return IsErrorType(entry.Type) && !string.IsNullOrWhiteSpace(entry.Stacktrace);
         }
 
-        private void SetTraceFontSize(int size, int stackTraceFontOffset, int stackTraceMinFontSize)
+        protected virtual void SetTraceFontSize(int size, int stackTraceFontOffset, int stackTraceMinFontSize)
         {
             size = Mathf.Max(8, size);
             _rowHeight = Mathf.Max(20f, size + 8f);
@@ -734,15 +891,42 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
         }
 
-        private void OnLogMessageReceived(string condition, string stacktrace, LogType type)
+        protected virtual void OnLogMessageReceived(string condition, string stacktrace, LogType type)
+        {
+            EnqueuePendingLog(CreatePendingLog(condition, stacktrace, type));
+        }
+
+        protected virtual PendingLog CreatePendingLog(string condition, string stacktrace, LogType type)
+        {
+            return new PendingLog(condition, stacktrace, type);
+        }
+
+        protected virtual void EnqueuePendingLog(PendingLog pendingLog)
         {
             lock (_pendingLock)
             {
-                _pendingLogs.Enqueue(new PendingLog(condition, stacktrace, type));
+                _pendingLogs.Enqueue(pendingLog);
             }
         }
 
-        private void FlushPendingLogs()
+        protected virtual void ProcessPendingLog(PendingLog pendingLog)
+        {
+            var isError = IsErrorType(pendingLog.Type);
+
+            AddLog(pendingLog.Condition, pendingLog.Stacktrace, pendingLog.Type);
+
+            if (autoOpenOnError && isError)
+            {
+                Open();
+            }
+
+            if (pauseOnError && isError)
+            {
+                PauseTimeScaleIfNeeded();
+            }
+        }
+
+        protected virtual void FlushPendingLogs()
         {
             var shouldStickToBottom = IsScrollAtBottom();
 
@@ -763,20 +947,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
             for (var i = 0; i < _flushBuffer.Count; i++)
             {
-                var pendingLog = _flushBuffer[i];
-                var isError = IsErrorType(pendingLog.Type);
-
-                AddLog(pendingLog.Condition, pendingLog.Stacktrace, pendingLog.Type);
-
-                if (autoOpenOnError && isError)
-                {
-                    Open();
-                }
-
-                if (pauseOnError && isError)
-                {
-                    PauseTimeScaleIfNeeded();
-                }
+                ProcessPendingLog(_flushBuffer[i]);
             }
 
             if (_isOpen && shouldStickToBottom)
@@ -785,7 +956,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
         }
 
-        private bool IsScrollAtBottom()
+        protected virtual bool IsScrollAtBottom()
         {
             if (_lastScrollViewHeight <= 0f)
             {
@@ -801,7 +972,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             return bottomPosition >= _lastContentHeight - 8f;
         }
 
-        private void UpdateUiScale()
+        protected virtual void UpdateUiScale()
         {
             if (!theme.AutoScaleWithScreen)
             {
@@ -819,7 +990,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             _uiScale = Mathf.Clamp(resolvedScale, theme.MinUiScale, theme.MaxUiScale);
         }
 
-        private void ClampWindowToVisibleArea()
+        protected virtual void ClampWindowToVisibleArea()
         {
             var safeScale = Mathf.Max(0.001f, _uiScale);
             var visibleWidth = Screen.width / safeScale;
@@ -829,7 +1000,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             windowRect.y = Mathf.Clamp(windowRect.y, 0f, Mathf.Max(0f, visibleHeight - windowRect.height));
         }
 
-        private void EnsureUiBlocker()
+        protected virtual void EnsureUiBlocker()
         {
             if (_uiBlockerCanvas != null && _uiBlockerRect != null && _uiBlockerImage != null)
             {
@@ -854,7 +1025,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             _uiBlockerImage.raycastTarget = true;
         }
 
-        private void SetUiBlockerActive(bool isActive)
+        protected virtual void SetUiBlockerActive(bool isActive)
         {
             if (!isActive && _uiBlockerCanvas == null)
             {
@@ -869,7 +1040,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
         }
 
-        private void SyncUiBlockerToWindow()
+        protected virtual void SyncUiBlockerToWindow()
         {
             if (!_isOpen)
             {
@@ -898,7 +1069,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 Mathf.Clamp(bottom, 0f, Mathf.Max(0f, Screen.height - height)));
         }
 
-        private void DestroyUiBlocker()
+        protected virtual void DestroyUiBlocker()
         {
             if (_uiBlockerCanvas == null)
             {
@@ -919,13 +1090,13 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             _uiBlockerImage = null;
         }
 
-        private void AddLog(string condition, string stacktrace, LogType type)
+        protected virtual void AddLog(string condition, string stacktrace, LogType type)
         {
             if (collapseDuplicates && _entries.Count > 0)
             {
                 var lastIndex = _entries.Count - 1;
                 var last = _entries[lastIndex];
-                if (last.Type == type && last.Condition == condition && last.Stacktrace == stacktrace)
+                if (CanCollapseWithPrevious(last, condition, stacktrace, type))
                 {
                     last.Count++;
                     _entries[lastIndex] = last;
@@ -943,10 +1114,12 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 _entries.RemoveAt(0);
             }
 
-            _entries.Add(new LogEntry(_nextEntryId++, DateTime.Now, condition, stacktrace, type));
+            var timestamp = GetLogTimestamp();
+            var displayLine = BuildDisplayLine(timestamp, condition);
+            _entries.Add(new LogEntry(_nextEntryId++, condition, stacktrace, type, displayLine));
         }
 
-        private void PauseTimeScaleIfNeeded()
+        protected virtual void PauseTimeScaleIfNeeded()
         {
             if (!Application.isPlaying)
             {
@@ -958,28 +1131,28 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 return;
             }
 
-            _timeScaleBeforePause = Time.timeScale;
-            Time.timeScale = 0f;
+            _timeScaleBeforePause = GetCurrentTimeScale();
+            SetCurrentTimeScale(0f);
             _pausedByConsole = true;
         }
 
-        private void RestoreTimeScaleIfNeeded()
+        protected virtual void RestoreTimeScaleIfNeeded()
         {
             if (!_pausedByConsole)
             {
                 return;
             }
 
-            Time.timeScale = _timeScaleBeforePause;
+            SetCurrentTimeScale(_timeScaleBeforePause);
             _pausedByConsole = false;
         }
 
-        private void NotifyCopiedToClipboard()
+        protected virtual void NotifyCopiedToClipboard()
         {
             _copyToastTimeLeft = theme.CopyToastDuration;
         }
 
-        private float GetCopyToastAlpha()
+        protected virtual float GetCopyToastAlpha()
         {
             if (_copyToastTimeLeft <= 0f)
             {
@@ -992,7 +1165,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             return Mathf.Pow(t, 0.7f);
         }
 
-        private bool ShouldShow(LogType type)
+        protected virtual bool ShouldShow(LogType type)
         {
             switch (type)
             {
@@ -1007,7 +1180,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
         }
 
-        private GUIStyle GetStyleForType(LogType type)
+        protected virtual GUIStyle GetStyleForType(LogType type)
         {
             switch (type)
             {
@@ -1022,7 +1195,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
         }
 
-        private string BuildClipboardText()
+        protected virtual string BuildClipboardText()
         {
             var builder = new StringBuilder();
             RuntimeConsoleCopyHeaderData.AppendHeader(builder, "All visible entries");
@@ -1048,7 +1221,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             return builder.ToString();
         }
 
-        private string BuildLatestErrorsClipboardText(int maxErrors)
+        protected virtual string BuildLatestErrorsClipboardText(int maxErrors)
         {
             if (maxErrors <= 0)
             {
@@ -1079,7 +1252,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             return builder.ToString();
         }
 
-        private void AppendEntryToClipboard(StringBuilder builder, LogEntry entry)
+        protected virtual void AppendEntryToClipboard(StringBuilder builder, LogEntry entry)
         {
             builder.Append(entry.Count);
             builder.Append(' ');
@@ -1094,7 +1267,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             builder.AppendLine();
         }
 
-        private void ReleaseStyleResources()
+        protected virtual void ReleaseStyleResources()
         {
             _windowStyle = null;
             _toolbarLabelStyle = null;
@@ -1121,7 +1294,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             SafeDestroyTexture(ref _rowOddTexture);
         }
 
-        private void EnsureStyles()
+        protected virtual void EnsureStyles()
         {
             if (_windowStyle != null && ReferenceEquals(_appliedTheme, theme))
             {
@@ -1232,7 +1405,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             SetTraceFontSize(theme.TraceFontSize, theme.StackTraceFontOffset, theme.StackTraceMinFontSize);
         }
 
-        private static RectOffset CopyRectOffset(RectOffset source, int defaultLeft, int defaultRight, int defaultTop, int defaultBottom)
+        protected static RectOffset CopyRectOffset(RectOffset source, int defaultLeft, int defaultRight, int defaultTop, int defaultBottom)
         {
             if (source == null)
             {
@@ -1242,7 +1415,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             return new RectOffset(source.left, source.right, source.top, source.bottom);
         }
 
-        private static Texture2D CreateSolidTexture(Color color)
+        protected static Texture2D CreateSolidTexture(Color color)
         {
             var texture = new Texture2D(1, 1, TextureFormat.RGBA32, false)
             {
@@ -1255,7 +1428,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             return texture;
         }
 
-        private static void ApplyBackgroundToAllStates(GUIStyle style, Texture2D background, Color textColor)
+        protected static void ApplyBackgroundToAllStates(GUIStyle style, Texture2D background, Color textColor)
         {
             style.normal.background = background;
             style.hover.background = background;
@@ -1276,7 +1449,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             style.onFocused.textColor = textColor;
         }
 
-        private static void SafeDestroyTexture(ref Texture2D texture)
+        protected static void SafeDestroyTexture(ref Texture2D texture)
         {
             if (texture == null)
             {
@@ -1295,7 +1468,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             texture = null;
         }
 
-        private static bool IsErrorType(LogType type)
+        protected virtual bool IsErrorType(LogType type)
         {
             switch (type)
             {
@@ -1308,12 +1481,12 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
         }
 
-        private static string GetOnOff(bool value)
+        protected static string GetOnOff(bool value)
         {
             return value ? "ON" : "OFF";
         }
 
-        private static string NormalizeLineBreaks(string text)
+        protected static string NormalizeLineBreaks(string text)
         {
             if (string.IsNullOrEmpty(text))
             {
@@ -1323,7 +1496,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             return text.Replace("\r\n", "\n").Replace('\r', '\n');
         }
 
-        private readonly struct PendingLog
+        protected readonly struct PendingLog
         {
             public readonly string Condition;
             public readonly string Stacktrace;
@@ -1337,7 +1510,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
         }
 
-        private struct LogEntry
+        public struct LogEntry
         {
             public readonly int Id;
             public readonly string Condition;
@@ -1346,18 +1519,18 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             public readonly string DisplayLine;
             public int Count;
 
-            public LogEntry(int id, DateTime timestamp, string condition, string stacktrace, LogType type)
+            public LogEntry(int id, string condition, string stacktrace, LogType type, string displayLine)
             {
                 Id = id;
                 Condition = condition ?? string.Empty;
                 Stacktrace = stacktrace ?? string.Empty;
                 Type = type;
                 Count = 1;
-                DisplayLine = $"[{timestamp:HH:mm:ss}] {NormalizeLineBreaks(Condition)}";
+                DisplayLine = NormalizeLineBreaks(displayLine ?? string.Empty);
             }
         }
 
-        private struct ButtonVisualState
+        protected struct ButtonVisualState
         {
             public float HoverAmount;
             public float ClickPulse;
