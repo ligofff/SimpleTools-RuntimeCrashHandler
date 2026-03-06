@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 {
@@ -112,17 +113,24 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
         private float _rowHeight;
 
+        private Canvas _uiBlockerCanvas;
+        private RectTransform _uiBlockerRect;
+        private Image _uiBlockerImage;
+
         private void Awake()
         {
             _windowId = GetInstanceID();
             _isOpen = openOnStart;
             Application.logMessageReceivedThreaded += OnLogMessageReceived;
+            EnsureUiBlocker();
+            SetUiBlockerActive(_isOpen);
         }
 
         private void OnDestroy()
         {
             Application.logMessageReceivedThreaded -= OnLogMessageReceived;
             RestoreTimeScaleIfNeeded();
+            DestroyUiBlocker();
             SafeDestroyTexture(ref _windowBackgroundTexture);
             SafeDestroyTexture(ref _buttonTexture);
             SafeDestroyTexture(ref _buttonHoverOverlayTexture);
@@ -136,6 +144,12 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         private void OnDisable()
         {
             RestoreTimeScaleIfNeeded();
+            SetUiBlockerActive(false);
+        }
+
+        private void OnEnable()
+        {
+            SetUiBlockerActive(_isOpen);
         }
 
         private void Update()
@@ -178,6 +192,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
 
             ClampWindowToVisibleArea();
+            SyncUiBlockerToWindow();
         }
 
         private void HandleToggleHotkeyFromGuiEvent()
@@ -225,12 +240,14 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         public void Open()
         {
             _isOpen = true;
+            SetUiBlockerActive(true);
         }
 
         public void Close()
         {
             _isOpen = false;
             RestoreTimeScaleIfNeeded();
+            SetUiBlockerActive(false);
         }
 
         public void Toggle()
@@ -659,7 +676,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
                 if (autoOpenOnError && isError)
                 {
-                    _isOpen = true;
+                    Open();
                 }
 
                 if (pauseOnError && isError)
@@ -721,6 +738,91 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
             windowRect.x = Mathf.Clamp(windowRect.x, 0f, Mathf.Max(0f, visibleWidth - windowRect.width));
             windowRect.y = Mathf.Clamp(windowRect.y, 0f, Mathf.Max(0f, visibleHeight - windowRect.height));
+        }
+
+        private void EnsureUiBlocker()
+        {
+            if (_uiBlockerCanvas != null && _uiBlockerRect != null && _uiBlockerImage != null)
+            {
+                return;
+            }
+
+            var canvasObject = new GameObject($"RuntimeConsoleUiBlockerCanvas_{GetInstanceID()}");
+            _uiBlockerCanvas = canvasObject.AddComponent<Canvas>();
+            _uiBlockerCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            _uiBlockerCanvas.sortingOrder = short.MaxValue;
+            canvasObject.AddComponent<GraphicRaycaster>();
+
+            var blockerObject = new GameObject("WindowBlocker");
+            blockerObject.transform.SetParent(canvasObject.transform, false);
+            _uiBlockerRect = blockerObject.AddComponent<RectTransform>();
+            _uiBlockerRect.anchorMin = Vector2.zero;
+            _uiBlockerRect.anchorMax = Vector2.zero;
+            _uiBlockerRect.pivot = Vector2.zero;
+
+            _uiBlockerImage = blockerObject.AddComponent<Image>();
+            _uiBlockerImage.color = new Color(0f, 0f, 0f, 0f);
+            _uiBlockerImage.raycastTarget = true;
+        }
+
+        private void SetUiBlockerActive(bool isActive)
+        {
+            EnsureUiBlocker();
+
+            if (_uiBlockerCanvas != null)
+            {
+                _uiBlockerCanvas.gameObject.SetActive(isActive);
+            }
+        }
+
+        private void SyncUiBlockerToWindow()
+        {
+            if (!_isOpen)
+            {
+                return;
+            }
+
+            EnsureUiBlocker();
+            if (_uiBlockerRect == null)
+            {
+                return;
+            }
+
+            var scaledRect = new Rect(
+                windowRect.x * _uiScale,
+                windowRect.y * _uiScale,
+                windowRect.width * _uiScale,
+                windowRect.height * _uiScale);
+
+            var width = Mathf.Max(0f, scaledRect.width);
+            var height = Mathf.Max(0f, scaledRect.height);
+            var bottom = Screen.height - scaledRect.y - height;
+
+            _uiBlockerRect.sizeDelta = new Vector2(width, height);
+            _uiBlockerRect.anchoredPosition = new Vector2(
+                Mathf.Clamp(scaledRect.x, 0f, Mathf.Max(0f, Screen.width - width)),
+                Mathf.Clamp(bottom, 0f, Mathf.Max(0f, Screen.height - height)));
+        }
+
+        private void DestroyUiBlocker()
+        {
+            if (_uiBlockerCanvas == null)
+            {
+                return;
+            }
+
+            if (Application.isPlaying)
+            {
+                Destroy(_uiBlockerCanvas.gameObject);
+            }
+            else
+            {
+                DestroyImmediate(_uiBlockerCanvas.gameObject);
+            }
+
+            _uiBlockerCanvas = null;
+            _uiBlockerRect = null;
+            _uiBlockerImage = null;
         }
 
         private void AddLog(string condition, string stacktrace, LogType type)
