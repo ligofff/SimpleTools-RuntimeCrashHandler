@@ -3356,6 +3356,7 @@ MonoBehaviour:
   titleTextBackgroundImage: {fileID: 3076914703759300108}
   titleWhenOpenedManually: Runtime Console
   titleWhenOpenedByError: Oppps, looks like your game was broken :(
+  titleTextErrorColor: {r: 0.95, g: 0.3, b: 0.3, a: 1}
   clearButton: {fileID: 2215527995386730545}
   autoOpenButton: {fileID: 897244301893306505}
   autoOpenButtonLabel: {fileID: 7860286345676068618}
@@ -4106,7 +4107,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: -0.000061035156}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &7144811866816528783

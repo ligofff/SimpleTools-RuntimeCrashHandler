@@ -72,6 +72,9 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         protected string titleWhenOpenedByError = "Oppps, looks like your game was broken :(";
 
         [SerializeField]
+        protected Color titleTextErrorColor = new Color(0.95f, 0.30f, 0.30f, 1f);
+
+        [SerializeField]
         protected Button clearButton;
 
         [SerializeField]
@@ -740,7 +743,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
             if (titleText != null)
             {
-                titleText.color = theme.ToolbarLabelTextColor;
+                titleText.color = ResolveTitleTextColor(_lastOpenTriggeredByError);
             }
 
             ApplyButtonVisual(clearButton, ResolveButtonLabel(clearButton, null), theme.ButtonColor, Color.white);
@@ -819,6 +822,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
 
             titleText.text = ResolveTitleText(_lastOpenTriggeredByError);
+            titleText.color = ResolveTitleTextColor(_lastOpenTriggeredByError);
         }
 
         protected virtual string ResolveTitleText(bool openedByError)
@@ -829,6 +833,16 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
 
             return titleWhenOpenedManually ?? string.Empty;
+        }
+
+        protected virtual Color ResolveTitleTextColor(bool openedByError)
+        {
+            if (openedByError)
+            {
+                return titleTextErrorColor;
+            }
+
+            return theme != null ? theme.ToolbarLabelTextColor : Color.white;
         }
 
         protected virtual void SetWindowActive(bool active)
