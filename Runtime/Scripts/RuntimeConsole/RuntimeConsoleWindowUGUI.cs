@@ -128,6 +128,9 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         [SerializeField]
         protected TMP_Text copyToastLabel;
 
+        [SerializeField]
+        protected TMP_InputField searchInputField;
+
         [Header("Row Layout")]
         [SerializeField]
         protected bool forceClampedScrollInInspectorLayout = true;
@@ -190,11 +193,15 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         protected float _lastContentHeight;
         protected float _cachedMessageWidth = -1f;
         protected float _cachedStackWidth = -1f;
+        protected string _searchQuery = string.Empty;
 
         protected TMP_Text _infoFilterLabel;
         protected TMP_Text _warningFilterLabel;
         protected TMP_Text _errorFilterLabel;
         protected TMP_Text _closeButtonLabel;
+        protected TMP_Text _searchTextLabel;
+        protected TMP_Text _searchPlaceholderLabel;
+        protected Image _searchFieldBackground;
         protected VerticalLayoutGroup _logContentVerticalLayoutGroup;
         protected ContentSizeFitter _logContentSizeFitter;
 
@@ -226,6 +233,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
 
             ResolveLabels();
+            ResolveSearchField();
             CacheTemplateMetrics();
             ApplyWindowRect();
             RegisterButtonEvents();
@@ -255,6 +263,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 return;
             }
 
+            ResolveSearchField();
             SubscribeToLogEvents();
             SetWindowActive(_isOpen);
             _layoutDirty = true;
@@ -290,6 +299,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             ApplyWindowRect();
             ApplyTheme();
             UpdateHeaderState();
+            ResolveSearchField();
         }
 
         protected virtual void OnGUI()
@@ -611,6 +621,122 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             return button != null ? button.GetComponentInChildren<TMP_Text>(true) : null;
         }
 
+        protected virtual void ResolveSearchField()
+        {
+            if (searchInputField == null)
+            {
+                searchInputField = CreateRuntimeSearchField();
+            }
+
+            if (searchInputField == null)
+            {
+                _searchFieldBackground = null;
+                _searchTextLabel = null;
+                _searchPlaceholderLabel = null;
+                return;
+            }
+
+            _searchFieldBackground = searchInputField.targetGraphic as Image;
+            if (_searchFieldBackground == null)
+            {
+                _searchFieldBackground = searchInputField.GetComponent<Image>();
+            }
+
+            _searchTextLabel = searchInputField.textComponent;
+            _searchPlaceholderLabel = searchInputField.placeholder as TMP_Text;
+            if (_searchPlaceholderLabel != null && string.IsNullOrWhiteSpace(_searchPlaceholderLabel.text))
+            {
+                _searchPlaceholderLabel.text = "Search logs...";
+            }
+
+            searchInputField.SetTextWithoutNotify(_searchQuery ?? string.Empty);
+        }
+
+        protected virtual TMP_InputField CreateRuntimeSearchField()
+        {
+            var headerContainer = clearButton != null ? clearButton.transform.parent as RectTransform : null;
+            if (headerContainer == null)
+            {
+                return null;
+            }
+
+            var searchObject = new GameObject("SearchField");
+            var searchRect = searchObject.AddComponent<RectTransform>();
+            searchRect.SetParent(headerContainer, false);
+            searchRect.sizeDelta = new Vector2(240f, 24f);
+            searchObject.AddComponent<CanvasRenderer>();
+
+            var background = searchObject.AddComponent<Image>();
+            background.raycastTarget = true;
+
+            var layout = searchObject.AddComponent<LayoutElement>();
+            layout.minWidth = 120f;
+            layout.preferredWidth = 260f;
+            layout.flexibleWidth = 1f;
+
+            var textObject = new GameObject("Text");
+            var textRect = textObject.AddComponent<RectTransform>();
+            textRect.SetParent(searchRect, false);
+            textRect.anchorMin = Vector2.zero;
+            textRect.anchorMax = Vector2.one;
+            textRect.offsetMin = new Vector2(8f, 3f);
+            textRect.offsetMax = new Vector2(-8f, -3f);
+            textObject.AddComponent<CanvasRenderer>();
+
+            var textLabel = textObject.AddComponent<TextMeshProUGUI>();
+            textLabel.text = string.Empty;
+            textLabel.alignment = TextAlignmentOptions.MidlineLeft;
+            textLabel.textWrappingMode = TextWrappingModes.NoWrap;
+            textLabel.richText = false;
+
+            var placeholderObject = new GameObject("Placeholder");
+            var placeholderRect = placeholderObject.AddComponent<RectTransform>();
+            placeholderRect.SetParent(searchRect, false);
+            placeholderRect.anchorMin = Vector2.zero;
+            placeholderRect.anchorMax = Vector2.one;
+            placeholderRect.offsetMin = new Vector2(8f, 3f);
+            placeholderRect.offsetMax = new Vector2(-8f, -3f);
+            placeholderObject.AddComponent<CanvasRenderer>();
+
+            var placeholderLabel = placeholderObject.AddComponent<TextMeshProUGUI>();
+            placeholderLabel.text = "Search logs...";
+            placeholderLabel.alignment = TextAlignmentOptions.MidlineLeft;
+            placeholderLabel.textWrappingMode = TextWrappingModes.NoWrap;
+            placeholderLabel.richText = false;
+            placeholderLabel.fontStyle = FontStyles.Italic;
+
+            var searchFont = autoOpenButtonLabel != null
+                ? autoOpenButtonLabel.font
+                : TMP_Settings.defaultFontAsset;
+            if (searchFont != null)
+            {
+                textLabel.font = searchFont;
+                placeholderLabel.font = searchFont;
+            }
+
+            if (autoOpenButtonLabel != null)
+            {
+                textLabel.fontSize = autoOpenButtonLabel.fontSize;
+                placeholderLabel.fontSize = autoOpenButtonLabel.fontSize;
+            }
+
+            var inputField = searchObject.AddComponent<TMP_InputField>();
+            inputField.targetGraphic = background;
+            inputField.textViewport = searchRect;
+            inputField.textComponent = textLabel;
+            inputField.placeholder = placeholderLabel;
+            inputField.lineType = TMP_InputField.LineType.SingleLine;
+            inputField.readOnly = false;
+            inputField.text = string.Empty;
+
+            if (closeButton != null && closeButton.transform.parent == headerContainer)
+            {
+                searchRect.SetSiblingIndex(Mathf.Max(0, closeButton.transform.GetSiblingIndex()));
+            }
+
+            return inputField;
+        }
+
         protected virtual void CacheTemplateMetrics()
         {
             if (rowPrefab == null)
@@ -700,6 +826,12 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             copyAllButton.onClick.RemoveAllListeners();
             copyAllButton.onClick.AddListener(CopyAllVisibleEntriesToClipboard);
 
+            if (searchInputField != null)
+            {
+                searchInputField.onValueChanged.RemoveAllListeners();
+                searchInputField.onValueChanged.AddListener(SetSearchQuery);
+            }
+
             logScrollRect.onValueChanged.RemoveAllListeners();
             logScrollRect.onValueChanged.AddListener(_ =>
             {
@@ -744,6 +876,25 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             if (titleText != null)
             {
                 titleText.color = ResolveTitleTextColor(_lastOpenTriggeredByError);
+            }
+
+            if (_searchFieldBackground != null)
+            {
+                _searchFieldBackground.color = theme.ButtonColor;
+            }
+
+            if (_searchTextLabel != null)
+            {
+                _searchTextLabel.color = theme.ToolbarLabelTextColor;
+                _searchTextLabel.fontSize = theme.ButtonFontSize;
+            }
+
+            if (_searchPlaceholderLabel != null)
+            {
+                var placeholderColor = theme.ToolbarLabelTextColor;
+                placeholderColor.a *= 0.6f;
+                _searchPlaceholderLabel.color = placeholderColor;
+                _searchPlaceholderLabel.fontSize = theme.ButtonFontSize;
             }
 
             ApplyButtonVisual(clearButton, ResolveButtonLabel(clearButton, null), theme.ButtonColor, Color.white);
@@ -812,6 +963,19 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
 
             ApplyTheme();
+        }
+
+        protected virtual void SetSearchQuery(string query)
+        {
+            var normalized = query ?? string.Empty;
+            if (string.Equals(_searchQuery, normalized, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _searchQuery = normalized;
+            _layoutDirty = true;
+            _rowsDirty = true;
         }
 
         protected virtual void UpdateTitleVisual()
@@ -1000,7 +1164,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             for (var i = 0; i < _entries.Count; i++)
             {
                 var entry = _entries[i];
-                if (!ShouldShow(entry.Type))
+                if (!ShouldShow(entry))
                 {
                     continue;
                 }
@@ -1740,6 +1904,33 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
         }
 
+        protected virtual bool ShouldShow(LogEntry entry)
+        {
+            if (!ShouldShow(entry.Type))
+            {
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(_searchQuery))
+            {
+                return true;
+            }
+
+            return ContainsSearchText(entry.DisplayLine) ||
+                   ContainsSearchText(entry.Condition) ||
+                   ContainsSearchText(entry.Stacktrace);
+        }
+
+        protected virtual bool ContainsSearchText(string text)
+        {
+            if (string.IsNullOrEmpty(text) || string.IsNullOrEmpty(_searchQuery))
+            {
+                return false;
+            }
+
+            return text.IndexOf(_searchQuery, StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
         protected virtual bool IsErrorType(LogType type)
         {
             switch (type)
@@ -1851,7 +2042,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             for (var i = 0; i < _entries.Count; i++)
             {
                 var entry = _entries[i];
-                if (!ShouldShow(entry.Type))
+                if (!ShouldShow(entry))
                 {
                     continue;
                 }
