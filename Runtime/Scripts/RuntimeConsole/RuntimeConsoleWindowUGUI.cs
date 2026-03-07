@@ -59,6 +59,19 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         protected Image headerBackground;
 
         [SerializeField]
+        protected TMP_Text titleText;
+
+        [SerializeField]
+        protected Image titleTextBackgroundImage;
+
+        [Header("Title")]
+        [SerializeField]
+        protected string titleWhenOpenedManually = "Runtime Console";
+
+        [SerializeField]
+        protected string titleWhenOpenedByError = "Oppps, looks like your game was broken :(";
+
+        [SerializeField]
         protected Button clearButton;
 
         [SerializeField]
@@ -156,6 +169,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         protected bool _suppressScrollValueChanged;
         protected bool _hasLoggedMissingThemeError;
         protected bool _hasLoggedMissingReferencesError;
+        protected bool _lastOpenTriggeredByError;
 
         protected int _selectedEntryId = -1;
         protected int _nextEntryId;
@@ -196,6 +210,8 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 _scrollToBottom = true;
             }
 
+            _lastOpenTriggeredByError = false;
+
             if (!EnsureThemeAssigned())
             {
                 return;
@@ -213,6 +229,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             ApplyTheme();
             UpdateHeaderState();
             UpdateCopyToastVisual();
+            UpdateTitleVisual();
 
             if (rowPrefab.gameObject.scene.IsValid())
             {
@@ -341,6 +358,16 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
         public virtual void Open()
         {
+            OpenInternal(false);
+        }
+
+        protected virtual void OpenByError()
+        {
+            OpenInternal(true);
+        }
+
+        protected virtual void OpenInternal(bool openedByError)
+        {
             _isOpen = true;
             if (!_hasOpenedAtLeastOnce)
             {
@@ -348,6 +375,8 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 _scrollToBottom = true;
             }
 
+            _lastOpenTriggeredByError = openedByError;
+            UpdateTitleVisual();
             SetWindowActive(true);
             _rowsDirty = true;
             OnConsoleOpened();
@@ -704,6 +733,16 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 headerBackground.color = theme.HeaderBackgroundColor;
             }
 
+            if (titleTextBackgroundImage != null)
+            {
+                titleTextBackgroundImage.color = theme.HeaderBackgroundColor;
+            }
+
+            if (titleText != null)
+            {
+                titleText.color = theme.ToolbarLabelTextColor;
+            }
+
             ApplyButtonVisual(clearButton, ResolveButtonLabel(clearButton, null), theme.ButtonColor, Color.white);
             ApplyButtonVisual(autoOpenButton, autoOpenButtonLabel, autoOpenOnError ? theme.ActiveButtonColor : theme.ButtonColor, Color.white);
             ApplyButtonVisual(pauseButton, pauseButtonLabel, pauseOnError ? theme.ActiveButtonColor : theme.ButtonColor, Color.white);
@@ -725,6 +764,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             _layoutDirty = true;
             _rowsDirty = true;
 
+            UpdateTitleVisual();
             RebuildBottomCenterActions();
         }
 
@@ -769,6 +809,26 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             }
 
             ApplyTheme();
+        }
+
+        protected virtual void UpdateTitleVisual()
+        {
+            if (titleText == null)
+            {
+                return;
+            }
+
+            titleText.text = ResolveTitleText(_lastOpenTriggeredByError);
+        }
+
+        protected virtual string ResolveTitleText(bool openedByError)
+        {
+            if (openedByError && !string.IsNullOrEmpty(titleWhenOpenedByError))
+            {
+                return titleWhenOpenedByError;
+            }
+
+            return titleWhenOpenedManually ?? string.Empty;
         }
 
         protected virtual void SetWindowActive(bool active)
@@ -845,7 +905,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
             if (autoOpenOnError && isError)
             {
-                Open();
+                OpenByError();
             }
 
             if (pauseOnError && isError)
