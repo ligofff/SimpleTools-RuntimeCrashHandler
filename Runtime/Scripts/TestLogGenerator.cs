@@ -5,7 +5,7 @@ using UnityEngine;
 namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 {
     [DisallowMultipleComponent]
-    public class RuntimeConsoleTestLogGenerator : MonoBehaviour
+    public class TestLogGenerator : MonoBehaviour
     {
         private enum SimulatedLogKind
         {
