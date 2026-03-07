@@ -954,7 +954,12 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
         protected virtual float GetRowHeight(LogEntry entry, float messageWidth, float stackWidth, bool expanded)
         {
-            var collapsedHeight = Mathf.Max(_rowHeight, _baseCollapsedRowHeight);
+            if (!_collapsedHeightCache.TryGetValue(entry.Id, out var collapsedHeight))
+            {
+                var measuredMessageHeight = MeasureTextHeight(rowPrefab.MessageLabel, entry.DisplayLine, messageWidth);
+                collapsedHeight = Mathf.Max(_rowHeight, _baseCollapsedRowHeight, measuredMessageHeight + 8f);
+                _collapsedHeightCache[entry.Id] = collapsedHeight;
+            }
 
             if (!expanded)
             {
