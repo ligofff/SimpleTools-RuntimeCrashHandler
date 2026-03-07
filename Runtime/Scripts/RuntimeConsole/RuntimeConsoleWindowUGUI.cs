@@ -956,7 +956,12 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
         {
             if (!_collapsedHeightCache.TryGetValue(entry.Id, out var collapsedHeight))
             {
-                var measuredMessageHeight = MeasureTextHeight(rowPrefab.MessageLabel, entry.DisplayLine, messageWidth);
+                var measuredMessageHeight = MeasureTextHeight(
+                    rowPrefab.MessageLabel,
+                    entry.DisplayLine,
+                    messageWidth,
+                    GetMessageFontSize(),
+                    theme != null && theme.EnableRichText);
                 collapsedHeight = Mathf.Max(_rowHeight, _baseCollapsedRowHeight, measuredMessageHeight + 8f);
                 _collapsedHeightCache[entry.Id] = collapsedHeight;
             }
@@ -966,18 +971,62 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 return collapsedHeight;
             }
 
-            var stackHeight = MeasureTextHeight(rowPrefab.StackLabel, entry.Stacktrace, stackWidth);
+            var stackHeight = MeasureTextHeight(
+                rowPrefab.StackLabel,
+                entry.Stacktrace,
+                stackWidth,
+                GetStackFontSize(),
+                theme != null && theme.EnableRichText);
             return collapsedHeight + stackHeight + 12f;
         }
 
-        protected virtual float MeasureTextHeight(TMP_Text templateLabel, string text, float width)
+        protected virtual float MeasureTextHeight(TMP_Text templateLabel, string text, float width, float fontSize, bool richText)
         {
             if (templateLabel == null)
             {
                 return _rowHeight;
             }
 
-            return templateLabel.GetPreferredValues(text ?? string.Empty, width, 0f).y;
+            var previousFontSize = templateLabel.fontSize;
+            var previousRichText = templateLabel.richText;
+            if (!Mathf.Approximately(previousFontSize, fontSize))
+            {
+                templateLabel.fontSize = fontSize;
+            }
+
+            if (previousRichText != richText)
+            {
+                templateLabel.richText = richText;
+            }
+
+            var result = templateLabel.GetPreferredValues(text ?? string.Empty, width, 0f).y;
+
+            if (!Mathf.Approximately(templateLabel.fontSize, previousFontSize))
+            {
+                templateLabel.fontSize = previousFontSize;
+            }
+
+            if (templateLabel.richText != previousRichText)
+            {
+                templateLabel.richText = previousRichText;
+            }
+
+            return result;
+        }
+
+        protected virtual float GetMessageFontSize()
+        {
+            return theme != null ? theme.TraceFontSize : _rowHeight;
+        }
+
+        protected virtual float GetStackFontSize()
+        {
+            if (theme == null)
+            {
+                return _rowHeight;
+            }
+
+            return Mathf.Max(theme.StackTraceMinFontSize, theme.TraceFontSize + theme.StackTraceFontOffset);
         }
 
         protected virtual float GetMessageWidth()
@@ -1321,14 +1370,14 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             {
                 rowView.CountLabel.text = entry.Count.ToString();
                 rowView.CountLabel.color = theme.CountTextColor;
-                rowView.CountLabel.fontSize = theme.TraceFontSize;
+                rowView.CountLabel.fontSize = GetMessageFontSize();
             }
 
             if (rowView.MessageLabel != null)
             {
                 rowView.MessageLabel.text = entry.DisplayLine;
                 rowView.MessageLabel.color = GetTextColor(entry.Type);
-                rowView.MessageLabel.fontSize = theme.TraceFontSize;
+                rowView.MessageLabel.fontSize = GetMessageFontSize();
                 rowView.MessageLabel.richText = theme.EnableRichText;
             }
 
@@ -1344,7 +1393,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             {
                 rowView.StackLabel.text = entry.Stacktrace;
                 rowView.StackLabel.color = theme.StackTraceTextColor;
-                rowView.StackLabel.fontSize = Mathf.Max(theme.StackTraceMinFontSize, theme.TraceFontSize + theme.StackTraceFontOffset);
+                rowView.StackLabel.fontSize = GetStackFontSize();
                 rowView.StackLabel.richText = theme.EnableRichText;
             }
 
