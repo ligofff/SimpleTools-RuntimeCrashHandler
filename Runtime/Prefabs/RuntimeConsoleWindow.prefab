@@ -3725,6 +3725,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: com.ligofff.simpletools-runtimecrashhandler.Runtime::Ligofff.RuntimeExceptionsHandler.RuntimeConsole.RuntimeConsoleWindowUGUI
   openOnStart: 0
   toggleKey: 96
+  toggleKeyModifier: 0
   maxEntries: 2000
   collapseDuplicates: 1
   autoOpenOnError: 1
@@ -4671,7 +4672,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchoredPosition: {x: 0, y: 0.000030517578}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &7144811866816528783

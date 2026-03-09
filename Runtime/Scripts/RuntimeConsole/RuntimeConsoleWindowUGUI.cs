@@ -10,12 +10,22 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
     [DisallowMultipleComponent]
     public partial class RuntimeConsoleWindowUGUI : MonoBehaviour
     {
+        protected enum ToggleKeyModifier
+        {
+            None = 0,
+            Shift = 1,
+            Ctrl = 2
+        }
+
         [Header("Window")]
         [SerializeField]
         protected bool openOnStart;
 
         [SerializeField]
         protected KeyCode toggleKey = KeyCode.BackQuote;
+
+        [SerializeField]
+        protected ToggleKeyModifier toggleKeyModifier = ToggleKeyModifier.None;
 
         [Header("Log behavior")]
         [SerializeField]
@@ -320,8 +330,35 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 return;
             }
 
+            if (!IsToggleModifierSatisfied(currentEvent))
+            {
+                return;
+            }
+
             Toggle();
             currentEvent.Use();
+        }
+
+        protected virtual bool IsToggleModifierSatisfied(Event currentEvent)
+        {
+            if (currentEvent == null)
+            {
+                return false;
+            }
+
+            var hasShift = currentEvent.shift;
+            var hasCtrl = currentEvent.control || currentEvent.command;
+            var hasAlt = currentEvent.alt;
+
+            switch (toggleKeyModifier)
+            {
+                case ToggleKeyModifier.Shift:
+                    return hasShift && !hasCtrl && !hasAlt;
+                case ToggleKeyModifier.Ctrl:
+                    return hasCtrl && !hasShift && !hasAlt;
+                default:
+                    return !hasShift && !hasCtrl && !hasAlt;
+            }
         }
 
         protected virtual void Update()
