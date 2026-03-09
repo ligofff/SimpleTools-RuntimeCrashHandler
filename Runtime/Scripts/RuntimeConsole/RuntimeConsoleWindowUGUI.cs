@@ -381,10 +381,16 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
 
         protected virtual void OpenInternal(bool openedByError)
         {
+            var wasOpen = _isOpen;
             _isOpen = true;
             if (!_hasOpenedAtLeastOnce)
             {
                 _hasOpenedAtLeastOnce = true;
+                _scrollToBottom = true;
+            }
+
+            if (openedByError && !wasOpen)
+            {
                 _scrollToBottom = true;
             }
 
