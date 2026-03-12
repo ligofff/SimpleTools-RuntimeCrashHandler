@@ -864,7 +864,7 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             goDownButton.onClick.AddListener(ScrollToBottom);
 
             copyLatestErrorsButton.onClick.RemoveAllListeners();
-            copyLatestErrorsButton.onClick.AddListener(() => CopyLatestErrorsToClipboard(3));
+            copyLatestErrorsButton.onClick.AddListener(() => CopyImportantErrorsToClipboard(3));
 
             copyAllButton.onClick.RemoveAllListeners();
             copyAllButton.onClick.AddListener(CopyAllVisibleEntriesToClipboard);
@@ -1003,6 +1003,12 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             if (pauseButtonLabel != null)
             {
                 pauseButtonLabel.text = $"Pause on error is {GetOnOff(pauseOnError)}";
+            }
+
+            var copyImportantLabel = ResolveButtonLabel(copyLatestErrorsButton, null);
+            if (copyImportantLabel != null)
+            {
+                copyImportantLabel.text = "Copy important";
             }
 
             ApplyTheme();
@@ -2030,9 +2036,9 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             _pausedByConsole = false;
         }
 
-        protected virtual void CopyLatestErrorsToClipboard(int maxErrors)
+        protected virtual void CopyImportantErrorsToClipboard(int maxErrorsPerSide)
         {
-            GUIUtility.systemCopyBuffer = BuildLatestErrorsClipboardText(maxErrors);
+            GUIUtility.systemCopyBuffer = BuildImportantErrorsClipboardText(maxErrorsPerSide);
             _copyToastTimeLeft = theme.CopyToastDuration;
             UpdateCopyToastVisual();
         }
@@ -2102,15 +2108,17 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
             return builder.ToString();
         }
 
-        protected virtual string BuildLatestErrorsClipboardText(int maxErrors)
+        protected virtual string BuildImportantErrorsClipboardText(int maxErrorsPerSide)
         {
-            maxErrors = Mathf.Max(1, maxErrors);
+            maxErrorsPerSide = Mathf.Max(1, maxErrorsPerSide);
 
             var builder = new StringBuilder();
-            RuntimeConsoleCopyHeaderData.AppendHeader(builder, $"Latest {maxErrors} errors");
-            var copiedCount = 0;
+            RuntimeConsoleCopyHeaderData.AppendHeader(builder, $"Important errors (first {maxErrorsPerSide} + latest {maxErrorsPerSide})");
+            var firstCopiedCount = 0;
+            var latestCopiedCount = 0;
 
-            for (var i = _entries.Count - 1; i >= 0 && copiedCount < maxErrors; i--)
+            builder.AppendLine($"First {maxErrorsPerSide} errors:");
+            for (var i = 0; i < _entries.Count && firstCopiedCount < maxErrorsPerSide; i++)
             {
                 var entry = _entries[i];
                 if (!IsErrorType(entry.Type))
@@ -2119,10 +2127,29 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                 }
 
                 AppendEntry(builder, entry);
-                copiedCount++;
+                firstCopiedCount++;
             }
 
-            if (copiedCount == 0)
+            if (firstCopiedCount == 0)
+            {
+                builder.AppendLine("No error entries found.");
+            }
+
+            builder.AppendLine();
+            builder.AppendLine($"Latest {maxErrorsPerSide} errors:");
+            for (var i = _entries.Count - 1; i >= 0 && latestCopiedCount < maxErrorsPerSide; i--)
+            {
+                var entry = _entries[i];
+                if (!IsErrorType(entry.Type))
+                {
+                    continue;
+                }
+
+                AppendEntry(builder, entry);
+                latestCopiedCount++;
+            }
+
+            if (latestCopiedCount == 0)
             {
                 builder.AppendLine("No error entries found.");
             }
