@@ -2096,6 +2096,11 @@ namespace Ligofff.RuntimeExceptionsHandler.RuntimeConsole
                     continue;
                 }
 
+                if (IsErrorType(entry.Type))
+                {
+                    builder.AppendLine("[GameError]");
+                }
+
                 AppendEntry(builder, entry);
                 copiedCount++;
             }
